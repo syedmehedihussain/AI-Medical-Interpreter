@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.routers import health, languages
 
 settings = get_settings()
 
@@ -32,7 +33,14 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+# Every API route lives under /api. The prefix is applied here rather than
+# repeated in each router, so the routers stay unaware of where they are
+# mounted and the URL layout is visible in one place.
+app.include_router(health.router, prefix="/api")
+app.include_router(languages.router, prefix="/api")
+
+
+@app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
-    """Liveness check. The real health endpoint arrives in task 1.7."""
+    """Liveness check. Hidden from /docs; GET /api/health is the real one."""
     return {"name": settings.app_name, "version": settings.version}

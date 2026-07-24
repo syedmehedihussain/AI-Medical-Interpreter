@@ -32,6 +32,30 @@ _PROVIDERS: dict[str, Callable[[], TranslationProvider]] = {
 }
 
 
+def provider_status() -> tuple[str, bool]:
+    """Return (configured provider name, whether it can actually serve).
+
+    Deliberately never raises, unlike get_provider(). GET /api/health calls
+    this, and schema.md 2.2 requires health to stay a 200 with
+    provider_ready=false rather than failing -- the frontend then shows Offline
+    instead of a blank screen.
+
+    The readiness question is per-provider knowledge, so it lives here rather
+    than in the router: the stub is always ready; google is ready only with an
+    API key configured. Stage 2 adds google to _PROVIDERS, at which point the
+    branch below starts being reachable.
+    """
+    settings = get_settings()
+    configured = settings.translation_provider.strip()
+    key = configured.lower()
+
+    if key not in _PROVIDERS:
+        return configured, False
+    if key == "google":
+        return configured, settings.google_ready
+    return configured, True
+
+
 @lru_cache
 def get_provider() -> TranslationProvider:
     """Return the configured provider instance.
