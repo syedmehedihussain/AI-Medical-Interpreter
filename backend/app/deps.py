@@ -16,21 +16,32 @@ header, decode the JWT, look the user up, raise 401 if any of that fails.
 
 from uuid import uuid4
 
+from fastapi import Request
 from pydantic import BaseModel
 
 
-async def new_request_id() -> str:
-    """A short id identifying one request, for the `meta.request_id` field.
+def make_request_id() -> str:
+    """Mint a short id for one request.
 
     Eight hex characters, matching the examples in schema.md section 2. Not a
     full UUID because this is a correlation handle for reading logs, not an
     identifier for anything stored. Short enough to quote in a bug report.
-
-    Declared as a dependency so every route gets one the same way, and so a
-    later version can read an incoming X-Request-ID header instead of minting
-    one without touching any route.
     """
     return uuid4().hex[:8]
+
+
+async def new_request_id(request: Request) -> str:
+    """The current request's id, for the `meta.request_id` field.
+
+    Reads the id that main.py's middleware stamped onto request.state, so a
+    route response and an error response for the same request carry the *same*
+    id. Generating one here instead would mean a failed request logged one id
+    and returned another, which defeats the point of having one.
+
+    Falls back to minting an id if the middleware did not run, so a route can
+    never fail merely because the id is missing.
+    """
+    return getattr(request.state, "request_id", None) or make_request_id()
 
 
 class CurrentUser(BaseModel):

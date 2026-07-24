@@ -125,10 +125,21 @@ class RiskFlag(BaseModel):
 class TranslateRequest(BaseModel):
     """Body of POST /api/translate/text.
 
-    Validation rules are schema.md 5.4. Note that these validators currently
-    raise plain ValueError, which FastAPI reports as a 422 VALIDATION_ERROR.
-    Task 1.9 replaces them with the specific codes the contract requires
-    (EMPTY_INPUT, SAME_LANGUAGE, UNSUPPORTED_LANGUAGE, TEXT_TOO_LONG).
+    Validation rules are schema.md 5.4. The validators raise TorongoError
+    subclasses rather than ValueError, which is what gets each failure its own
+    code and status (EMPTY_INPUT, SAME_LANGUAGE, UNSUPPORTED_LANGUAGE,
+    TEXT_TOO_LONG) instead of collapsing them all into a 422.
+
+    Why that works: Pydantic converts ValueError and AssertionError raised
+    inside a validator into its own ValidationError, but lets any other
+    exception type propagate untouched. TorongoError inherits from Exception,
+    so it travels out through FastAPI's body parsing and reaches the handler
+    registered in main.py. Verified, not assumed.
+
+    The imports are inside the validator bodies on purpose. app.errors imports
+    ErrorCode from this module, so importing it at the top here would be a
+    circular import. A deferred import breaks the cycle and costs nothing,
+    since Python caches modules after the first load.
     """
 
     # extra="forbid" is schema.md 5.4's "unknown fields rejected". Without it,
@@ -151,11 +162,13 @@ class TranslateRequest(BaseModel):
         The stripped value is what gets returned, so everything downstream
         works with normalised text and no other layer has to remember to trim.
         """
+        from app.errors import EmptyInputError, TextTooLongError
+
         stripped = value.strip()
         if not stripped:
-            raise ValueError("text must not be blank")
+            raise EmptyInputError()
         if len(stripped) > MAX_TEXT_LENGTH:
-            raise ValueError(f"text must be at most {MAX_TEXT_LENGTH} characters")
+            raise TextTooLongError()
         return stripped
 
     @field_validator("source_lang", "target_lang")
@@ -169,15 +182,19 @@ class TranslateRequest(BaseModel):
         requires 400 UNSUPPORTED_LANGUAGE. Validating by hand keeps that
         distinction available.
         """
+        from app.errors import UnsupportedLanguageError
+
         if value not in ENABLED_LANGUAGE_CODES:
-            raise ValueError(f"language '{value}' is not supported")
+            raise UnsupportedLanguageError(log_detail=f"rejected language code {value!r}")
         return value
 
     @model_validator(mode="after")
     def languages_must_differ(self) -> "TranslateRequest":
         """schema.md 5.4: source and target must not be the same language."""
+        from app.errors import SameLanguageError
+
         if self.source_lang == self.target_lang:
-            raise ValueError("source_lang and target_lang must be different")
+            raise SameLanguageError()
         return self
 
 
