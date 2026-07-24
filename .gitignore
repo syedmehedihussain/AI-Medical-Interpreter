@@ -1,0 +1,33 @@
+# Secrets
+# .env holds the Google Translate API key. It must never be committed.
+# .env.example is committed, with placeholder values only.
+.env
+.env.*
+!.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.local
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local working artefacts, not part of the submitted project
+CLAUDE.md
+build-cycle.md
+.claude/
+docs/claude-code-prompts.md
+docs/design.md

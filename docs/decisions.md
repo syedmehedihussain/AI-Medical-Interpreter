@@ -1,0 +1,208 @@
+# decisions.md
+
+**Torongo — Decision Log**
+
+A running record of what was chosen and why. Newest entries go at the top.
+
+Add an entry whenever a choice was non-obvious, when something was rejected, or when a plan changed mid-build. Six months from now this file is the only thing that remembers the reasoning — and it is what turns a viva answer from "I don't know, it was already like that" into a defensible argument.
+
+**Format:** ID · Date · Decision · Context · Options considered · Choice and reasoning · Consequences · Revisit when
+
+---
+
+## D-012 · 2026-07-20 · Store no raw audio at all
+
+**Context.** SRS NFR-3.3 requires raw audio to be deleted after transcription unless consent is given for retention. SRS 7.5 includes a `raw_audio_url` column.
+
+**Options.** (a) Store audio with a deletion job. (b) Store audio only with consent. (c) Never store audio; drop the column.
+
+**Choice.** (c) for v0.1, and provisionally beyond.
+
+**Reasoning.** In v0.1 audio never leaves the browser — recognition runs client-side and only text is sent to the server. That makes the privacy requirement true by construction rather than by policy, which is much stronger. Deletion jobs fail; code that never writes cannot leak. When Whisper arrives in v0.4 audio will be sent to the server, but it can be held in memory for the duration of transcription and discarded without ever hitting disk.
+
+**Consequences.** No retained corpus from production use. Thesis training data must be collected separately with explicit consent, which is the correct process anyway.
+
+**Revisit** if a consented research-retention feature is genuinely required.
+
+---
+
+## D-011 · 2026-07-20 · Freeze the response envelope before it's needed
+
+**Context.** A general translation API returns none of `confidence`, `risk_flags`, `detected_dialect`, or `needs_review`. TorongoNet will return all of them.
+
+**Options.** (a) Return only what Google gives, add fields later. (b) Include all fields now as `null` / `[]` / `false`.
+
+**Choice.** (b).
+
+**Reasoning.** Adding a field to a response later means auditing every component that consumes it. Adding it now costs a few lines and forces the frontend to handle absence from day one, which it will have to do anyway. It also makes the architecture legible in the report: the clinical safety layer has a named, visible place to plug into rather than being hand-waved as future work.
+
+**Consequences.** Slightly odd-looking responses full of nulls in v0.1. Worth explaining once in the README.
+
+**Revisit** never — this is the contract.
+
+---
+
+## D-010 · 2026-07-20 · Accept `context` in requests but ignore it
+
+**Context.** SRS FR-3 specifies a clinical context selector feeding the translation engine. There is no engine that can use it yet.
+
+**Options.** (a) Omit the field until there's a model. (b) Accept and validate it, ignore it downstream. (c) Build the UI selector too.
+
+**Choice.** (b). No UI selector in v0.1.
+
+**Reasoning.** Same logic as D-011 for the field itself. But a visible selector that demonstrably changes nothing is worse than no selector — it's a lie in the interface. So the field exists in the contract, and the control arrives with the capability in v0.3.
+
+**Revisit** at v0.3 when an LLM provider can act on it.
+
+---
+
+## D-009 · 2026-07-20 · Frontend `useSpeech` hook as the ASR seam
+
+**Context.** v0.1 uses browser speech recognition. v0.4 needs Whisper over WebSocket.
+
+**Choice.** All speech recognition is confined to `src/hooks/useSpeech.js`, exposing a fixed interface: `{ isListening, interimText, finalText, error, isSupported, start, stop }`.
+
+**Reasoning.** Components subscribe to state, not to an engine. A WebSocket implementation can produce the same interface — interim results become partial messages from the server, final results become completed segments. Nothing above the hook changes.
+
+**Consequences.** The hook must not leak `SpeechRecognition` objects or browser-specific error strings to callers. Errors are translated into the app's own error vocabulary inside the hook.
+
+---
+
+## D-008 · 2026-07-20 · Google Cloud Translation v2, not an LLM
+
+**Context.** v0.1 needs Bangla↔English translation from a hosted service.
+
+**Options.** Google Translate v2, Microsoft Translator, DeepL, Gemini, Claude.
+
+- DeepL — eliminated immediately, no Bangla.
+- Gemini / Claude — good quality, can follow clinical-tone instructions, but 2–5× the latency and non-deterministic output. Latency matters for live speech.
+- Microsoft Translator — genuinely comparable, 2M free characters/month.
+- Google Translate v2 — sub-second, a plain REST call with an API key, no SDK or OAuth flow, reliable Bangla.
+
+**Choice.** Google Translate v2, with Microsoft as the documented fallback.
+
+**Reasoning.** For a live voice loop, latency is the product. An LLM's ability to handle clinical phrasing is valuable but belongs in v0.3's summary feature, where a few seconds don't matter.
+
+**Consequences.** Requires a Google Cloud project with billing enabled, which can be a hurdle. Provider choice sits behind an interface, so switching is one new file and one env var.
+
+**Revisit** if Google Cloud billing setup proves impossible, or at v0.3 when comparing clinical translation quality against an LLM.
+
+---
+
+## D-007 · 2026-07-20 · Anonymous-user dependency instead of no auth concept at all
+
+**Context.** v0.1 has no login, but v0.2 does.
+
+**Options.** (a) No user concept; add it later. (b) `get_current_user()` returning a fixed anonymous user, with endpoints already declaring the dependency.
+
+**Choice.** (b).
+
+**Reasoning.** Retrofitting auth means editing every endpoint signature. Declaring `user = Depends(get_current_user)` today means one function body changes later and every route is already wired. It also makes the ownership rules in `schema.md` §5 implementable without restructuring.
+
+---
+
+## D-006 · 2026-07-20 · No database in v0.1
+
+**Context.** SRS specifies PostgreSQL with seven tables.
+
+**Options.** (a) Postgres now. (b) SQLite now. (c) Nothing; in-memory only.
+
+**Choice.** (c), with a `SessionRepository` protocol defined and an in-memory implementation that nothing calls.
+
+**Reasoning.** A database before the translation pipeline works is weeks of models, sessions, and migrations blocking the one thing that proves the project viable. The protocol costs an afternoon and means v0.2 adds an implementation rather than reorganizing the codebase.
+
+**Consequences.** Transcript is lost on refresh. Stated in the empty-state copy so it isn't a surprise.
+
+**Revisit** at v0.2. SQLite first, Postgres only if the deployment target requires it.
+
+---
+
+## D-005 · 2026-07-20 · Browser Web Speech API instead of Whisper
+
+**Context.** SRS specifies a fine-tuned Whisper model behind a WebSocket for ASR.
+
+**Options.** (a) Whisper on the server with WebSocket streaming. (b) A hosted ASR API. (c) The browser's built-in Web Speech API.
+
+**Choice.** (c).
+
+**Reasoning.** The browser API is roughly 30 lines of JavaScript against several hundred plus a model runtime and GPU or heavy CPU cost. It streams interim results natively — the live-caption effect the SRS describes comes for free. It's free to run and supports `bn-BD`. The only real cost is browser support, and the fallback (manual text entry) is already a required feature.
+
+The dialect work that motivates the whole thesis genuinely requires a fine-tuned Whisper. But that is v1.0, and having a working app first makes that work easier, not harder.
+
+**Consequences.** Chrome and Edge only. No dialect capability. Both documented as known limitations in `scope.md` §7 — and the second one is precisely the research gap being argued for.
+
+**Revisit** at v0.4.
+
+---
+
+## D-004 · 2026-07-20 · React + Vite, not Next.js
+
+**Context.** SRS names Next.js.
+
+**Choice.** React with Vite.
+
+**Reasoning.** v0.1 is one page with no routing and no server-rendering requirement. Next.js adds a router, a server runtime, and a rendering model to learn for no benefit at this size. Vite's config is short and its hot reload is instant, which matters when the feedback loop is the main learning mechanism.
+
+**Consequences.** SEO and SSR unavailable. Neither matters for a clinical tool behind a login. Migration later is mostly file relocation.
+
+**Revisit** if a marketing site or public-facing pages become part of the project.
+
+---
+
+## D-003 · 2026-07-20 · JavaScript, not TypeScript
+
+**Context.** TypeScript is the better engineering choice and is standard in the ecosystem.
+
+**Choice.** Plain JavaScript.
+
+**Reasoning.** Learning React, HTTP, async, and web APIs simultaneously is already a large load. TypeScript adds a second language where every type error becomes a hard blocker. The place type safety actually protects this project is the API boundary, and that's enforced by Pydantic on the backend, with the contract written down in `schema.md`.
+
+**Consequences.** No compile-time safety on the frontend. More runtime bugs. Acceptable at this size.
+
+**Revisit** at v0.2 if the frontend grows past roughly fifteen components.
+
+---
+
+## D-002 · 2026-07-20 · v0.1 scope cut to a single translation flow
+
+**Context.** The SRS specifies 13 functional requirement groups, 8 non-functional groups, 7 tables, 14 use cases, and an admin dashboard. That's a team's six months.
+
+**Choice.** v0.1 implements voice-in → translate → voice-out, EN↔BN, with no auth, no database, and no clinical layer.
+
+**Reasoning.** A walking skeleton that runs end to end is worth more than five half-built subsystems. Every deferred feature gets a named seam so that deferring is a scheduling decision, not a design debt.
+
+**Consequences.** The SRS and the implementation diverge, and that gap must be explained rather than hidden. Framing: *"The SRS specifies the complete system. v0.1 implements the core pipeline end-to-end with defined extension points for the remaining modules."*
+
+---
+
+## D-001 · 2026-07-20 · Web app first, model training later
+
+**Context.** The original instinct was to start by training a dialect translation model.
+
+**Options.** (a) Train first, build the app around it. (b) Build the app against a hosted API, train later.
+
+**Choice.** (b).
+
+**Reasoning.** There is no usable Sylheti or Chatgaiya speech corpus, so training starts with months of data collection. Meanwhile the deliverable for CSE309 is a web application. Building against a hosted API produces a working, demonstrable system, and — importantly — establishes the baseline that any future fine-tuned model must beat. That baseline is a real experimental asset, not a compromise.
+
+**Consequences.** No dialect support in v0.1. The general-purpose API's weakness on clinical Bangla becomes the documented motivation for the thesis work rather than an embarrassment.
+
+---
+
+## Template
+
+```
+## D-0XX · YYYY-MM-DD · One-line decision
+
+**Context.** What forced a choice.
+
+**Options.** What was on the table.
+
+**Choice.** What was picked.
+
+**Reasoning.** Why. Be honest — "it was simpler" is a valid engineering reason.
+
+**Consequences.** What this costs or forecloses.
+
+**Revisit** when X happens.
+```
