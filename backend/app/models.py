@@ -1,0 +1,309 @@
+"""Request and response models: the frozen API contract.
+
+Everything here mirrors docs/schema.md section 2. That contract is frozen
+(decisions.md D-011): adding a database in v0.2 must not change any shape in
+this file. If a change here would alter a request or response, stop and check
+the spec before proceeding.
+
+Field declaration order matters. Pydantic serialises in declaration order, so
+the models below are written in the same order the JSON appears in schema.md.
+"""
+
+from enum import Enum
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+# ---------------------------------------------------------------------------
+# Language codes (schema.md section 1)
+# ---------------------------------------------------------------------------
+
+
+class LanguageInfo(BaseModel):
+    """One entry in the GET /api/languages response (schema.md 2.3)."""
+
+    code: str
+    label: str
+    native_label: str
+    speech_supported: bool
+
+
+# The languages actually enabled in v0.1. This tuple is the single source of
+# truth for both validation and the /api/languages endpoint, so enabling a new
+# language is a one-line change here rather than an edit in several places.
+ENABLED_LANGUAGES: tuple[LanguageInfo, ...] = (
+    LanguageInfo(code="en", label="English", native_label="English", speech_supported=True),
+    LanguageInfo(code="bn", label="Bangla", native_label="বাংলা", speech_supported=True),
+)
+
+ENABLED_LANGUAGE_CODES: frozenset[str] = frozenset(lang.code for lang in ENABLED_LANGUAGES)
+
+# Declared in schema.md section 1 but deliberately NOT enabled in v0.1. Listed
+# here so the codes are reserved and their absence from ENABLED_LANGUAGE_CODES
+# is visibly intentional rather than an oversight. Requesting one of these
+# returns UNSUPPORTED_LANGUAGE, same as any unknown code.
+RESERVED_LANGUAGE_CODES: frozenset[str] = frozenset({"bn-syl", "bn-ctg", "bn-mix", "unknown"})
+
+# Text length bound from schema.md 5.4, measured after stripping.
+MAX_TEXT_LENGTH = 500
+
+
+class ClinicalContext(str, Enum):
+    """Clinical context for a translation request.
+
+    v0.1 defines exactly one value. The field is accepted and validated but
+    ignored by every provider (decisions.md D-010), and there is deliberately
+    no UI selector for it, because a visible control that changes nothing is a
+    lie in the interface. The remaining contexts arrive in v0.3 alongside a
+    model that can act on them; adding them is adding members here.
+    """
+
+    GENERAL = "general"
+
+
+# ---------------------------------------------------------------------------
+# Error codes (schema.md section 2.1)
+# ---------------------------------------------------------------------------
+
+
+class ErrorCode(str, Enum):
+    """Every error code in the contract.
+
+    The HTTP status and retryable flag for each live in app/errors.py (task
+    1.9), not here, so this stays a plain vocabulary of names.
+    """
+
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    EMPTY_INPUT = "EMPTY_INPUT"
+    SAME_LANGUAGE = "SAME_LANGUAGE"
+    UNSUPPORTED_LANGUAGE = "UNSUPPORTED_LANGUAGE"
+    TEXT_TOO_LONG = "TEXT_TOO_LONG"
+    PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
+    PROVIDER_RATE_LIMITED = "PROVIDER_RATE_LIMITED"
+    PROVIDER_TIMEOUT = "PROVIDER_TIMEOUT"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+# ---------------------------------------------------------------------------
+# Risk flags (schema.md section 2.4)
+# ---------------------------------------------------------------------------
+
+
+class RiskFlagType(str, Enum):
+    """Categories from SRS 6.6, quoted in schema.md 2.4."""
+
+    DOSAGE = "dosage"
+    ALLERGY = "allergy"
+    EMERGENCY_SYMPTOM = "emergency_symptom"
+    PREGNANCY = "pregnancy"
+    UNCLEAR_DRUG_NAME = "unclear_drug_name"
+    LOW_CONFIDENCE = "low_confidence"
+    CONTRADICTION = "contradiction"
+
+
+class RiskFlag(BaseModel):
+    """A single clinical safety flag on a translation.
+
+    Nothing produces one of these in v0.1 -- risk_flags is always []. The shape
+    is defined now so that when TorongoNet starts emitting flags, no request or
+    response shape changes (D-011).
+    """
+
+    type: RiskFlagType
+    span: tuple[int, int]  # [start, end] character offsets into the source text
+    # schema.md documents "high" but does not enumerate the full set, so this
+    # stays a plain string rather than an invented enum. See SRS 6.6.
+    severity: str
+    note: str
+
+
+# ---------------------------------------------------------------------------
+# Request (schema.md section 2.4)
+# ---------------------------------------------------------------------------
+
+
+class TranslateRequest(BaseModel):
+    """Body of POST /api/translate/text.
+
+    Validation rules are schema.md 5.4. Note that these validators currently
+    raise plain ValueError, which FastAPI reports as a 422 VALIDATION_ERROR.
+    Task 1.9 replaces them with the specific codes the contract requires
+    (EMPTY_INPUT, SAME_LANGUAGE, UNSUPPORTED_LANGUAGE, TEXT_TOO_LONG).
+    """
+
+    # extra="forbid" is schema.md 5.4's "unknown fields rejected". Without it,
+    # a typo like "source_language" would be silently ignored and the request
+    # would translate into the default language instead of failing loudly.
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    source_lang: str
+    target_lang: str
+    context: ClinicalContext = ClinicalContext.GENERAL
+    # Reserved for v0.2 persistence. Accepted and ignored in v0.1.
+    session_id: str | None = None
+
+    @field_validator("text")
+    @classmethod
+    def text_must_be_present_and_short_enough(cls, value: str) -> str:
+        """Trim, then enforce the 1-500 character bound from schema.md 5.4.
+
+        The stripped value is what gets returned, so everything downstream
+        works with normalised text and no other layer has to remember to trim.
+        """
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("text must not be blank")
+        if len(stripped) > MAX_TEXT_LENGTH:
+            raise ValueError(f"text must be at most {MAX_TEXT_LENGTH} characters")
+        return stripped
+
+    @field_validator("source_lang", "target_lang")
+    @classmethod
+    def language_must_be_enabled(cls, value: str) -> str:
+        """Reject any code not enabled in v0.1, reserved codes included.
+
+        source_lang and target_lang are typed str rather than an Enum on
+        purpose. An Enum would make an unknown code a Pydantic type error,
+        which the contract reports as 422 VALIDATION_ERROR, but schema.md 2.1
+        requires 400 UNSUPPORTED_LANGUAGE. Validating by hand keeps that
+        distinction available.
+        """
+        if value not in ENABLED_LANGUAGE_CODES:
+            raise ValueError(f"language '{value}' is not supported")
+        return value
+
+    @model_validator(mode="after")
+    def languages_must_differ(self) -> "TranslateRequest":
+        """schema.md 5.4: source and target must not be the same language."""
+        if self.source_lang == self.target_lang:
+            raise ValueError("source_lang and target_lang must be different")
+        return self
+
+
+# ---------------------------------------------------------------------------
+# Internal provider result
+# ---------------------------------------------------------------------------
+
+
+class TranslationResult(BaseModel):
+    """What a TranslationProvider returns (stack.md section 4, seam 1).
+
+    Deliberately not the same object as TranslateData. This is the internal
+    shape a provider produces; the router assembles the public response from
+    it. Keeping them separate means a provider cannot accidentally decide what
+    the API returns.
+
+    The four clinical fields default to empty. A general translation API has
+    nothing to put in them; TorongoNet will (D-011).
+    """
+
+    translated_text: str
+    detected_dialect: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    risk_flags: list[RiskFlag] = Field(default_factory=list)
+    needs_review: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Response data objects
+# ---------------------------------------------------------------------------
+
+
+class TranslateData(BaseModel):
+    """The "data" object of POST /api/translate/text (schema.md 2.4).
+
+    Field order matches the spec exactly. The last five fields are always
+    null/[]/false in v0.1 and are present anyway, which is the entire point of
+    D-011: adding the clinical layer later changes no shape and no component.
+    """
+
+    source_text: str
+    translated_text: str
+    source_lang: str
+    target_lang: str
+    detected_dialect: str | None = None
+    confidence: float | None = None
+    risk_flags: list[RiskFlag] = Field(default_factory=list)
+    needs_review: bool = False
+    context: ClinicalContext = ClinicalContext.GENERAL
+
+
+class HealthData(BaseModel):
+    """The "data" object of GET /api/health (schema.md 2.2)."""
+
+    # v0.1 only ever emits "ok". Provider trouble is reported through
+    # provider_ready, so the endpoint stays a 200 and the app shows Offline
+    # rather than crashing.
+    status: str = "ok"
+    provider: str
+    provider_ready: bool
+    version: str
+
+
+class LanguagesData(BaseModel):
+    """The "data" object of GET /api/languages (schema.md 2.3)."""
+
+    languages: list[LanguageInfo]
+
+
+# ---------------------------------------------------------------------------
+# Envelopes (schema.md section 2.1)
+# ---------------------------------------------------------------------------
+
+
+class ResponseMeta(BaseModel):
+    """Meta for endpoints that only carry a request id.
+
+    schema.md 2.2 and 2.3 show meta containing request_id alone, so provider
+    and latency_ms are not optional fields here that serialise as null -- they
+    are absent, on TranslateMeta below instead.
+    """
+
+    request_id: str
+
+
+class TranslateMeta(ResponseMeta):
+    """Meta for the translate endpoint, which also reports provider and timing."""
+
+    provider: str
+    latency_ms: int
+
+
+DataT = TypeVar("DataT")
+MetaT = TypeVar("MetaT", bound=ResponseMeta)
+
+
+class Envelope(BaseModel, Generic[DataT, MetaT]):
+    """Every successful response: {"data": ..., "meta": ...}.
+
+    Generic over the meta type as well as the data type, which is load-bearing.
+    Pydantic v2 serialises a field using its declared type, so annotating meta
+    as ResponseMeta and passing a TranslateMeta would silently drop provider
+    and latency_ms from the JSON. Parameterising it keeps the subclass fields.
+
+    Used as Envelope[TranslateData, TranslateMeta] on the route signature.
+    """
+
+    data: DataT
+    meta: MetaT
+
+
+class ErrorDetail(BaseModel):
+    """The "error" object (schema.md 2.1).
+
+    message is written for the end user and is safe to display verbatim.
+    Internal detail -- tracebacks, upstream provider messages, key problems --
+    goes to the server log and never into this field (schema.md 5.3 rule 5).
+    """
+
+    code: ErrorCode
+    message: str
+    retryable: bool
+
+
+class ErrorEnvelope(BaseModel):
+    """Every error response: {"error": ..., "meta": ...}."""
+
+    error: ErrorDetail
+    meta: ResponseMeta
