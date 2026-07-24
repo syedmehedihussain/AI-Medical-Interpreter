@@ -1,0 +1,43 @@
+/* Bengali webfont loaded explicitly, not left to the system (prd.md E-23).
+   Without this, Bangla renders as boxes on a machine with no Bengali font. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+  }
+
+  /* prd.md section 6: every control reachable by Tab with a visible focus
+     ring. Set globally so no component can forget it. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-sky-600 ring-offset-2;
+  }
+}
+
+@layer utilities {
+  /* Bengali needs more vertical room than Latin at the same nominal size. */
+  .font-bn {
+    font-family: 'Noto Sans Bengali', 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* prd.md section 6: respect prefers-reduced-motion. Applied globally so a
+   component cannot forget to opt out. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
