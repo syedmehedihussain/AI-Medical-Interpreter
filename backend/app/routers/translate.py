@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 from app.deps import CurrentUser, get_current_user, new_request_id
 from app.errors import InternalError, TorongoError
 from app.models import Envelope, TranslateData, TranslateMeta, TranslateRequest
+from app.services.quality import check_translation
 from app.services.registry import get_provider
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,16 @@ async def translate_text(
         logger.exception("provider %s raised an unexpected error [%s]", provider.name, request_id)
         raise InternalError(log_detail=f"{type(exc).__name__}: {exc}") from exc
     latency_ms = int((time.perf_counter() - start) * 1000)
+
+    # First real use of the clinical safety layer the envelope was designed
+    # for (D-011). Flags rather than blocks: a suspicious translation with a
+    # warning is more useful to a clinician than no translation at all.
+    result = check_translation(result, payload.target_lang)
+    if result.needs_review:
+        logger.warning(
+            "flagged translation %s->%s via %s [%s]",
+            payload.source_lang, payload.target_lang, provider.name, request_id,
+        )
 
     logger.info(
         "translated %s->%s via %s in %dms [%s]",

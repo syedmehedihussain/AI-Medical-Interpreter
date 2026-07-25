@@ -10,6 +10,40 @@ Add an entry whenever a choice was non-obvious, when something was rejected, or 
 
 ---
 
+## D-017 · 2026-07-26 · Replace MyMemory with Google's keyless endpoint, and flag wrong-script output
+
+**Context.** The developer reported translations appearing in Romanised Bangla rather than Bengali script. Measured against 18 common conversational phrases, MyMemory failed 5:
+
+| Input | MyMemory returned | Problem |
+|---|---|---|
+| `hello` | `ami tomake chai` | Roman script, and means "I want you" |
+| `good morning` | `शुभ प्रभात` | **Hindi**, not Bangla |
+| `how are you` | `apni kemon achen` | Right meaning, wrong script |
+| `what is your name` | `ai tomar naam ki` | Roman script |
+| `I am fine` | `I am fine` | Not translated |
+
+MyMemory is a translation *memory*: it returns community-contributed matches, so quality varies by whether a human happened to contribute a good one. That is unfixable from our side.
+
+**Options.** (a) Keep MyMemory and document the limitation. (b) Wait for a Google Cloud key. (c) Use Google's keyless web endpoint, the text sibling of the TTS endpoint already accepted in D-016. (d) A public LibreTranslate or Lingva instance.
+
+**Choice.** (c), plus a script check that flags suspect output regardless of provider.
+
+**Reasoning.** Measured rather than assumed: the same 18 phrases through Google's keyless endpoint returned **18 of 18 in correct Bengali script**, including all five MyMemory failures. LibreTranslate's public instance now requires an API key. Lingva worked but is a third-party proxy with unknown uptime.
+
+The endpoint carries the same caveat already accepted for TTS: undocumented, no service guarantee, development and demo only. `google.py`, the real Cloud Translation v2 client, remains what the deployed build should use. Consistency matters here: it would be strange to accept the risk for audio and refuse it for text.
+
+**The script check is the more important half.** Showing `शुभ प्रभात` to a Bangla-speaking patient, with nothing indicating anything went wrong, is a real harm and not a cosmetic defect. So `services/quality.py` measures what share of the output's letters belong to the target script, and below half it sets `needs_review` and attaches a `low_confidence` risk flag.
+
+**This is the first real use of `needs_review` and `risk_flags`.** Until now they were always `false` and `[]`, present only so the shape would not change when a safety layer arrived (D-011). It arrived. The envelope absorbed it with no contract change, no new field, and no frontend restructuring, which is the clearest possible evidence that D-011 was the right call.
+
+It **flags rather than blocks**: the translation is still returned and displayed with a visible warning, because a suspicious translation a clinician can judge beats none, and the operator is qualified to judge.
+
+**Consequences.** Two thresholds, both deliberate. Output must be at least 50% target-script letters, not 100%, because correct Bangla legitimately contains Latin drug names and dosages ("Napa 500mg"). And output with fewer than four letters is never judged, because "500 mg" and "ORS" are legitimate untranslated outputs and flagging them would train the operator to ignore the warning.
+
+**Revisit** when a Google Cloud key exists: switch to `google`. The script check stays regardless -- it is provider-independent and is the seed of the clinical safety layer the SRS describes.
+
+---
+
 ## D-016 · 2026-07-26 · Add server-side text-to-speech as a fallback
 
 **Context.** `stack.md` section 1 locks text-to-speech to the browser's Web Speech Synthesis API. That API can only use voices the operating system already has. The developer's desktop Chrome has no Bangla voice, so half the product was silent, and the first attempt at handling this correctly (refusing to speak rather than mispronouncing, D-015's companion fix) made the silence total. "It is not talking to me back at all" is a fair description of a translation app that cannot speak.

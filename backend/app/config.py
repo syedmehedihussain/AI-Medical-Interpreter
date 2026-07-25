@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     app_name: str = "Torongo"
     version: str = "0.1.0"
 
-    # stub | google. Only "stub" is implemented until Stage 2.
-    translation_provider: str = "stub"
+    # stub | mymemory | google_free | google
+    translation_provider: str = "google_free"
 
     # Deliberately optional. A missing key must not stop the server starting;
     # it only means the google provider is not ready. See google_ready below.

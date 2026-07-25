@@ -105,6 +105,28 @@ export default function OutputPanel({
         )}
       </div>
 
+      {/* schema.md 2.4: needs_review and risk_flags, populated for the first
+          time by the backend's script check. A flagged translation is still
+          shown, because a suspicious translation a clinician can judge beats
+          none at all; the warning makes the doubt visible rather than
+          leaving the operator to trust it blindly. */}
+      {result?.needs_review && (
+        <div
+          role="alert"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5"
+        >
+          <span className="mt-0.5 text-sm font-bold text-amber-800" aria-hidden="true">!</span>
+          <div className="flex-1 text-sm text-amber-900">
+            <p className="font-medium">Check this translation before relying on it.</p>
+            {result.risk_flags?.map((flag, index) => (
+              <p key={index} className="mt-0.5 text-xs text-amber-800">
+                {flag.note}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* prd.md E-21 made visible rather than hidden in a tooltip. Silence
           with no explanation reads as a broken feature; this says what is
           missing and that the text is still usable. */}

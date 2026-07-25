@@ -92,10 +92,13 @@ Set `TRANSLATION_PROVIDER` in `backend/.env`. Restart the backend after changing
 | Value | Key needed | Quality | Use for |
 |---|---|---|---|
 | `stub` | no | none — echoes `[bn] <your text>` | Working offline, or on the UI without spending quota |
-| `mymemory` | no | uneven on short phrases, good on full sentences | **The default.** Development and demos |
+| `google_free` | no | real Google translation | **The default.** Development and demos |
+| `mymemory` | no | poor — returned Romanised Bangla and even Hindi on common phrases | Demonstrating the provider seam only |
 | `google` | yes | best | Deployment, and any measurement of translation quality |
 
-The default is `mymemory` so that a fresh clone translates for real with no setup at all.
+The default is `google_free` so that a fresh clone translates correctly with no setup at all. It uses an undocumented Google endpoint with no service guarantee ([decisions.md](docs/decisions.md) D-017), so the deployed build should use `google` with a real key.
+
+Whatever the provider, the backend checks that a translation is actually in the target script and marks it `needs_review` with a `low_confidence` risk flag when it is not, which the UI surfaces as a warning. That guard exists because MyMemory once returned Hindi for a Bangla request.
 
 <details>
 <summary>Getting a Google Cloud Translation key</summary>
@@ -117,7 +120,7 @@ The default is `mymemory` so that a fresh clone translates for real with no setu
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TRANSLATION_PROVIDER` | `mymemory` | `stub`, `mymemory`, or `google` |
+| `TRANSLATION_PROVIDER` | `google_free` | `stub`, `google_free`, `mymemory`, or `google` |
 | `GOOGLE_TRANSLATE_API_KEY` | empty | Only read when the provider is `google` |
 | `TTS_PROVIDER` | `google_translate` | Serves `GET /api/speech`, used when the browser has no local voice |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | CORS allowlist, comma-separated, no trailing slash |
@@ -178,7 +181,8 @@ Documented tradeoffs, not defects.
 |---|---|
 | `Failed to fetch` in the browser | Is the backend running? Is `VITE_API_BASE_URL` correct? Vite only reads `.env` at startup — restart it. |
 | CORS error in the console | `ALLOWED_ORIGINS` must match the frontend origin exactly, with no trailing slash. Restart the backend after changing it. |
-| Translation returns `[bn] <your text>` | `TRANSLATION_PROVIDER` is still `stub`. Set it to `mymemory` or `google` and restart. |
+| Translation returns `[bn] <your text>` | `TRANSLATION_PROVIDER` is still `stub`. Set it to `google_free` or `google` and restart. |
+| Translation shows a "check this" warning | The output was not in the target script. Usually a weak provider; switch to `google_free` or `google`. |
 | Voice button does nothing | Chrome or Edge? Microphone permission granted? Open **http://localhost:5173/mic-test.html**, which drives the speech API directly and logs every event. |
 | Bangla shows as boxes | The Bengali webfont failed to load. Check the network tab. |
 | Backend will not start | Virtual environment activated? Running from inside `backend/`? |

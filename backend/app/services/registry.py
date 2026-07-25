@@ -14,6 +14,7 @@ from typing import Callable
 from app.config import get_settings
 from app.services.base import TranslationProvider
 from app.services.google import GoogleProvider
+from app.services.google_free import GoogleFreeProvider
 from app.services.mymemory import MyMemoryProvider
 from app.services.stub import StubProvider
 
@@ -33,6 +34,7 @@ class ProviderConfigurationError(RuntimeError):
 _PROVIDERS: dict[str, Callable[[], TranslationProvider]] = {
     "stub": StubProvider,
     "mymemory": MyMemoryProvider,
+    "google_free": GoogleFreeProvider,
     "google": GoogleProvider,
 }
 
