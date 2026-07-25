@@ -10,6 +10,26 @@ Add an entry whenever a choice was non-obvious, when something was rejected, or 
 
 ---
 
+## D-015 · 2026-07-26 · Buffer finalised speech segments instead of translating each one
+
+**Context.** `prd.md` F-2 specifies that a finalised phrase is sent for translation immediately. In real use, Chrome finalises a segment on every brief pause, including mid-sentence thinking pauses. The first live test produced exactly the predicted failure: "it cuts off in the middle sometimes." A sentence like "I have chest pain ... since yesterday" arrived as two final results and became two half-sentence translations.
+
+**Options.** (a) Keep sending each final immediately, as specified. (b) Buffer finals and send after a quiet period. (c) Buffer, but flush on sentence-ending punctuation.
+
+**Choice.** (b), with a 1000ms quiet window, plus an immediate flush when the buffer reaches the 500-character limit or when the user presses stop.
+
+**Reasoning.** Two problems, one fix. It reads to the user as being interrupted mid-thought, and it translates *worse*, because a fragment carries less context than a sentence and general-domain engines lean heavily on context.
+
+(c) was rejected because speech recognition punctuation is unreliable across languages and effectively absent for Bangla, so it would work in English and silently fail in the other half of the product.
+
+The cost is up to one second of added latency against the 5s budget in NFR-1.1, where the provider round trip is already about a second. Whole sentences are worth a second.
+
+**Consequences.** A departure from `prd.md` F-2 as written; that line should be updated to describe the buffer. Pressing stop mid-sentence still translates what was already said rather than discarding it. The timer is called through a ref so that a language change while a flush is pending cannot send text with the previous language pair.
+
+**Revisit** if the window feels sluggish in clinical use, or when server-side ASR arrives in v0.4 and segmentation becomes ours to control rather than Chrome's.
+
+---
+
 ## D-014 · 2026-07-25 · Add MyMemory as a keyless development provider
 
 **Context.** Google Cloud Translation requires a project with billing enabled. That account setup had not happened, so every translation in the running app was returning the stub's `[bn] <text>` echo. The pipeline was complete and correct end to end, and the product still looked broken to anyone using it, because the one thing a translation app must do was visibly not happening.

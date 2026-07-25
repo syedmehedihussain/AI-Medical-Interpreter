@@ -18,6 +18,11 @@ const AUTOPLAY_KEY = 'torongo.autoplay'
 // anything longer, so trimming here turns a hard error into a soft note.
 const MAX_SEGMENT_LENGTH = 500
 
+// How long speech must stay quiet before buffered segments are translated.
+// Long enough to absorb a mid-sentence pause, short enough to still feel
+// immediate. See the segment buffer below and decisions.md D-015.
+const SEGMENT_FLUSH_MS = 1000
+
 /**
  * Read the saved pair, defending against anything unusable in localStorage.
  *
@@ -132,22 +137,69 @@ export default function App() {
   )
 
   /**
-   * A finalised speech segment translates with no further interaction.
+   * Finalised speech segments are buffered, not translated one by one.
    *
-   * Kept in a ref-free useCallback whose identity changes with the language
-   * pair, which is fine: useSpeech stores the latest callback in a ref, so a
-   * new identity does not restart the engine.
+   * Chrome finalises a segment on every brief pause, so "I have chest pain
+   * ... since yesterday" arrives as two separate final results and, without
+   * buffering, becomes two half-sentence translations. That reads to the user
+   * as the app cutting them off mid-thought, and it translates worse, because
+   * a fragment has less context than a sentence.
+   *
+   * So segments accumulate and are sent once speech has been quiet for
+   * SEGMENT_FLUSH_MS. prd.md F-2 says a finalised phrase is sent immediately;
+   * this is a deliberate departure, recorded as D-015. The cost is under a
+   * second of added latency against a 5s budget (NFR-1.1); the benefit is
+   * whole sentences.
    */
-  const handleFinalResult = useCallback(
-    (text) => {
-      setLastFinalText(text)
-      runTranslation(text, { inputMode: 'voice' })
-    },
-    [runTranslation],
-  )
+  const segmentBufferRef = useRef([])
+  const flushTimerRef = useRef(null)
+  const flushRef = useRef(() => {})
+
+  const flushSegments = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    const buffered = segmentBufferRef.current.join(' ').trim()
+    segmentBufferRef.current = []
+    if (buffered) runTranslation(buffered, { inputMode: 'voice' })
+  }, [runTranslation])
+
+  // The pending timer captured whichever flush existed when it was scheduled.
+  // If the language pair changed in between, that closure is stale, so the
+  // timer calls through this ref instead of the captured function.
+  useEffect(() => {
+    flushRef.current = flushSegments
+  }, [flushSegments])
+
+  const handleFinalResult = useCallback((text) => {
+    segmentBufferRef.current.push(text)
+    const combined = segmentBufferRef.current.join(' ')
+    setLastFinalText(combined)
+
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+
+    // Do not wait for quiet if the buffer is already at the length the
+    // backend would reject (E-11); send what we have.
+    if (combined.length >= MAX_SEGMENT_LENGTH) {
+      flushRef.current()
+      return
+    }
+    flushTimerRef.current = setTimeout(() => flushRef.current(), SEGMENT_FLUSH_MS)
+  }, [])
 
   const speechLang = getLanguage(sourceLang)?.speechLang ?? 'en-US'
   const speech = useSpeech({ lang: speechLang, onFinalResult: handleFinalResult })
+
+  /** Stopping should translate what was already said, not discard it. */
+  const stopListening = useCallback(() => {
+    speech.stop()
+    flushRef.current()
+  }, [speech])
+
+  useEffect(() => () => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+  }, [])
 
   // prd.md E-1 and E-2: when voice cannot work, the typing path is the whole
   // app, so it opens by default rather than staying behind a disclosure.
@@ -208,7 +260,7 @@ export default function App() {
         truncated={truncated}
         sourceLang={sourceLang}
         onStart={speech.start}
-        onStop={speech.stop}
+        onStop={stopListening}
       />
 
       <ManualInput

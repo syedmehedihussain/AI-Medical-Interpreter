@@ -105,6 +105,16 @@ export default function OutputPanel({
         )}
       </div>
 
+      {/* prd.md E-21 made visible rather than hidden in a tooltip. Silence
+          with no explanation reads as a broken feature; this says what is
+          missing and that the text is still usable. */}
+      {text && !hasVoice && (
+        <p className="mt-2 text-xs text-slate-500">
+          No {getDisplayLabel(lang)} voice is installed on this device, so the translation
+          is not read aloud. The text above is still correct.
+        </p>
+      )}
+
       {message && (
         <div
           role="alert"

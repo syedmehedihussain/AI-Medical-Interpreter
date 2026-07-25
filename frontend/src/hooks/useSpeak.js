@@ -23,7 +23,7 @@ function normalise(tag) {
  * starts with the same primary subtag is accepted, so a system offering only
  * 'bn-IN' still serves a request for 'bn-BD'.
  */
-function pickVoice(voices, ttsLangs) {
+export function pickVoice(voices, ttsLangs) {
   if (!voices.length) return null
   for (const candidate of ttsLangs) {
     const wanted = normalise(candidate)
@@ -69,29 +69,37 @@ export function useSpeak({ lang }) {
 
   const speak = useCallback(
     (text) => {
-      if (!synth || !text?.trim()) return
+      if (!synth || !text?.trim()) return false
+
+      // prd.md E-21, enforced properly.
+      //
+      // Refusing to speak is deliberate and is the whole point. Handing
+      // Bengali text to speechSynthesis with lang="bn-BD" when no Bengali
+      // voice is installed does NOT fail: the platform quietly substitutes
+      // its default voice, and an English voice reading Bengali codepoints
+      // produces confident-sounding nonsense. Silence plus a visible
+      // explanation is far better than audio the user may believe is a
+      // translation. The text stays on screen and readable, which is what
+      // makes this a degraded state rather than a failure.
+      if (!voice) return false
+
       // prd.md E-22: a new translation interrupts the previous utterance
       // rather than queueing behind it. In a consultation, the current
       // sentence is the only one that matters.
       synth.cancel()
 
       const utterance = new SpeechSynthesisUtterance(text)
-      if (voice) {
-        utterance.voice = voice
-        utterance.lang = voice.lang
-      } else {
-        // No matching voice: hand the tag over anyway and let the platform do
-        // what it can. hasVoice already told the UI to disable the control.
-        utterance.lang = getLanguage(lang)?.ttsLangs?.[0] ?? lang
-      }
+      utterance.voice = voice
+      utterance.lang = voice.lang
       utterance.onend = () => setIsSpeaking(false)
       utterance.onerror = () => setIsSpeaking(false)
 
       utteranceRef.current = utterance
       setIsSpeaking(true)
       synth.speak(utterance)
+      return true
     },
-    [synth, voice, lang],
+    [synth, voice],
   )
 
   // A page that navigates away mid-sentence keeps talking otherwise; the
