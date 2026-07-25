@@ -10,6 +10,26 @@ Add an entry whenever a choice was non-obvious, when something was rejected, or 
 
 ---
 
+## D-013 · 2026-07-25 · Accept React 19 and Vite 8 instead of the pinned 18 and 5
+
+**Context.** `stack.md` section 1 locks React at 18.x and Vite at 5.x. Running `npm create vite@latest -- --template react` in July 2026 scaffolds React 19.2.7 and Vite 8.1.5. The pinned versions were written when they were current; they no longer are.
+
+**Options.** (a) Force the pinned versions by downgrading. (b) Accept what the scaffold produces and record the change. (c) Pin only React, take current Vite.
+
+**Choice.** (b).
+
+**Reasoning.** Nothing in v0.1 uses an API that differs between these versions. The app is `useState`, `useEffect`, `useRef`, and `useCallback`, with no class components, no legacy lifecycle methods, no `ReactDOM.render`, and no state library whose peer dependency could conflict. React 19's breaking changes are concentrated in APIs this project never touches.
+
+Against that, downgrading has real costs: it means fighting the scaffold on every fresh clone, pinning versions that will keep ageing, and explaining in a viva why the project runs a deliberately old React with no benefit to point at. "The document was written before the release" is a better answer than a downgrade that bought nothing.
+
+The locked-stack rule in `stack.md` exists to stop mid-build churn over preferences, not to freeze version numbers against time. This is the escape hatch that section prescribes being used as intended.
+
+**Consequences.** `stack.md` section 1 is now out of date on two rows and should be read alongside this entry. Any React 18-specific guidance found online may not apply. If a genuine incompatibility appears, this is cheap to revisit: the app has no version-sensitive code, so downgrading later is a `package.json` edit and a reinstall.
+
+**Revisit** if a dependency added later demands React 18, or if a React 19 behaviour change breaks something. Verified working at the Stage 3 gate.
+
+---
+
 ## D-012 · 2026-07-20 · Store no raw audio at all
 
 **Context.** SRS NFR-3.3 requires raw audio to be deleted after transcription unless consent is given for retention. SRS 7.5 includes a `raw_audio_url` column.
