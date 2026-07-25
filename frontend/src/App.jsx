@@ -1,50 +1,69 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getHealth } from './api/client'
+import CapturePanel from './components/CapturePanel'
 import Header from './components/Header'
 import LanguageBar from './components/LanguageBar'
 import ManualInput from './components/ManualInput'
 import OutputPanel from './components/OutputPanel'
+import Transcript from './components/Transcript'
+import { useSpeak } from './hooks/useSpeak'
+import { SPEECH_ERROR, useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
-import { DEFAULT_SOURCE, DEFAULT_TARGET, getOther } from './lib/languages'
+import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
-// prd.md F-1: the language pair survives a refresh.
-const STORAGE_KEY = 'torongo.languagePair'
+const PAIR_KEY = 'torongo.languagePair'
+const AUTOPLAY_KEY = 'torongo.autoplay'
+
+// prd.md E-11: cap a finalised segment before sending. The backend rejects
+// anything longer, so trimming here turns a hard error into a soft note.
+const MAX_SEGMENT_LENGTH = 500
 
 /**
  * Read the saved pair, defending against anything unusable in localStorage.
  *
  * Storage is user-writable and outlives code changes, so a value written by an
  * older build, or edited by hand, must not be able to crash the app on load.
- * Anything failing validation falls back to the default pair.
  */
 function loadLanguagePair() {
   const fallback = { sourceLang: DEFAULT_SOURCE, targetLang: DEFAULT_TARGET }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(PAIR_KEY)
     if (!raw) return fallback
     const saved = JSON.parse(raw)
-    if (!saved?.sourceLang || !saved?.targetLang) return fallback
-    // A same-language pair is unreachable through the UI but trivially
-    // writable by hand, so it is re-derived rather than trusted.
-    if (saved.sourceLang === saved.targetLang) return fallback
+    if (!saved?.sourceLang || !getLanguage(saved.sourceLang)) return fallback
+    // Re-derived rather than trusted: a same-language pair is unreachable
+    // through the UI but trivially writable by hand.
     return { sourceLang: saved.sourceLang, targetLang: getOther(saved.sourceLang) }
   } catch {
     return fallback
   }
 }
 
+function loadAutoplay() {
+  try {
+    // prd.md F-4: on by default, since the clinical case is hands-free.
+    return localStorage.getItem(AUTOPLAY_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
 export default function App() {
   const [{ sourceLang, targetLang }, setLanguagePair] = useState(loadLanguagePair)
   const [backendReachable, setBackendReachable] = useState(null)
-  const [manualOpen, setManualOpen] = useState(true)
+  const [manualOpen, setManualOpen] = useState(false)
+  const [autoplay, setAutoplay] = useState(loadAutoplay)
+  const [entries, setEntries] = useState([])
+  const [lastFinalText, setLastFinalText] = useState('')
+  const [truncated, setTruncated] = useState(false)
 
   const { translate, isLoading, error, result } = useTranslate()
+  const speak = useSpeak({ lang: targetLang })
 
-  // Remembered so the retry button can resend the exact same text.
   const lastRequestRef = useRef(null)
+  const entryCounterRef = useRef(0)
 
-  // prd.md F-7: status is checked once on load, then driven by request
-  // outcomes. A failed health call means Offline, not a blank screen.
+  // prd.md F-7: checked once on load, then driven by request outcomes.
   useEffect(() => {
     let cancelled = false
     getHealth()
@@ -57,34 +76,96 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sourceLang, targetLang }))
+      localStorage.setItem(PAIR_KEY, JSON.stringify({ sourceLang, targetLang }))
     } catch {
-      // Private browsing can make localStorage throw on write. Losing the
-      // saved pair is not worth breaking the app over.
+      // Private browsing can make setItem throw. Not worth crashing over.
     }
   }, [sourceLang, targetLang])
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(AUTOPLAY_KEY, String(autoplay))
+    } catch {
+      // As above.
+    }
+  }, [autoplay])
+
   /**
-   * The single translation entry point.
+   * The single translation entry point, shared by voice and typing.
    *
-   * Voice input in Stage 4 will call this same function. Typing is not a
-   * separate pipeline; it just skips the speech step.
+   * prd.md F-5 is explicit that manual entry is not a separate code path. The
+   * only difference is inputMode, recorded on the transcript entry.
    */
   const runTranslation = useCallback(
-    async (text, { inputMode = 'typed' } = {}) => {
+    async (rawText, { inputMode = 'typed' } = {}) => {
+      const text = rawText.slice(0, MAX_SEGMENT_LENGTH)
+      setTruncated(rawText.length > MAX_SEGMENT_LENGTH)
+
       lastRequestRef.current = { text, inputMode }
       const data = await translate({ text, sourceLang, targetLang })
-      // A completed round trip is the most reliable evidence the backend is
-      // up, so it corrects the status the health check set on load.
-      if (data) setBackendReachable(true)
+      if (!data) return null
+
+      setBackendReachable(true)
+
+      // Field names match schema.md section 3 so these serialise straight into
+      // transcript rows when persistence arrives in v0.2.
+      entryCounterRef.current += 1
+      setEntries((previous) => [
+        ...previous,
+        {
+          id: `${Date.now()}-${entryCounterRef.current}`,
+          sourceText: data.source_text,
+          translatedText: data.translated_text,
+          sourceLang: data.source_lang,
+          targetLang: data.target_lang,
+          timestamp: new Date().toISOString(),
+          inputMode,
+          confidence: data.confidence,
+          riskFlags: data.risk_flags ?? [],
+        },
+      ])
+
+      if (autoplay) speak.speak(data.translated_text)
       return data
     },
-    [translate, sourceLang, targetLang],
+    [translate, sourceLang, targetLang, autoplay, speak],
   )
 
-  // A network-level failure means Offline; a 400 or 500 does not, because the
-  // server plainly answered. Driven off the error rather than the call site so
-  // it cannot disagree with what OutputPanel is showing.
+  /**
+   * A finalised speech segment translates with no further interaction.
+   *
+   * Kept in a ref-free useCallback whose identity changes with the language
+   * pair, which is fine: useSpeech stores the latest callback in a ref, so a
+   * new identity does not restart the engine.
+   */
+  const handleFinalResult = useCallback(
+    (text) => {
+      setLastFinalText(text)
+      runTranslation(text, { inputMode: 'voice' })
+    },
+    [runTranslation],
+  )
+
+  const speechLang = getLanguage(sourceLang)?.speechLang ?? 'en-US'
+  const speech = useSpeech({ lang: speechLang, onFinalResult: handleFinalResult })
+
+  // prd.md E-1 and E-2: when voice cannot work, the typing path is the whole
+  // app, so it opens by default rather than staying behind a disclosure.
+  useEffect(() => {
+    if (!speech.isSupported) setManualOpen(true)
+  }, [speech.isSupported])
+
+  useEffect(() => {
+    if (
+      speech.error?.code === SPEECH_ERROR.PERMISSION_DENIED ||
+      speech.error?.code === SPEECH_ERROR.NO_MICROPHONE
+    ) {
+      setManualOpen(true)
+    }
+  }, [speech.error])
+
+  // A network failure means Offline; a 400 or 500 does not, because the server
+  // plainly answered.
   useEffect(() => {
     if (error?.code === 'NETWORK_ERROR') setBackendReachable(false)
   }, [error])
@@ -94,22 +175,49 @@ export default function App() {
     if (last) runTranslation(last.text, { inputMode: last.inputMode })
   }, [runTranslation])
 
-  // Precedence matters: a live request outranks idle Ready, and an unreachable
-  // backend outranks everything.
+  const handleLanguageChange = useCallback((pair) => {
+    setLanguagePair(pair)
+    // The old caption belongs to the old language; leaving it on screen while
+    // the label says otherwise is worse than clearing it.
+    setLastFinalText('')
+  }, [])
+
+  // Listening outranks a live request, which outranks idle. Offline outranks
+  // everything, since nothing can complete without the backend.
   let status = 'ready'
   if (backendReachable === false) status = 'offline'
+  else if (speech.isListening) status = 'listening'
   else if (isLoading) status = 'translating'
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-white shadow-sm">
       <Header status={status} />
 
-      <LanguageBar sourceLang={sourceLang} targetLang={targetLang} onChange={setLanguagePair} />
+      <LanguageBar
+        sourceLang={sourceLang}
+        targetLang={targetLang}
+        onChange={handleLanguageChange}
+      />
+
+      <CapturePanel
+        isListening={speech.isListening}
+        interimText={speech.interimText}
+        lastFinalText={lastFinalText}
+        error={speech.error}
+        isSupported={speech.isSupported}
+        truncated={truncated}
+        sourceLang={sourceLang}
+        onStart={speech.start}
+        onStop={speech.stop}
+      />
 
       <ManualInput
         open={manualOpen}
         onOpenChange={setManualOpen}
-        onSubmit={(text) => runTranslation(text, { inputMode: 'typed' })}
+        onSubmit={(text) => {
+          setLastFinalText(text)
+          runTranslation(text, { inputMode: 'typed' })
+        }}
         isLoading={isLoading}
         sourceLang={sourceLang}
       />
@@ -120,11 +228,14 @@ export default function App() {
         error={error}
         targetLang={targetLang}
         onRetry={retry}
+        onSpeak={speak.speak}
+        isSpeaking={speak.isSpeaking}
+        hasVoice={speak.hasVoice}
+        autoplay={autoplay}
+        onAutoplayChange={setAutoplay}
       />
 
-      <footer className="mt-auto px-4 py-4 text-center text-xs text-slate-400 sm:px-6">
-        Torongo v0.1 &middot; typed input only; voice arrives in Stage 4
-      </footer>
+      <Transcript entries={entries} onClear={() => setEntries([])} />
     </div>
   )
 }
