@@ -111,7 +111,16 @@ export default function CapturePanel({
           role="alert"
           className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
         >
-          {message}
+          <p>{message}</p>
+          {/* Raw browser code, for diagnosis. Chrome's own strings are the
+              only way to tell a permission refusal from a build that has no
+              speech service at all. Remove once Stage 6 is signed off. */}
+          {error?.detail && (
+            <p className="mt-1.5 font-mono text-[11px] text-amber-700/80">
+              browser reported: {error.detail}
+              {error.message ? ` (${error.message})` : ''}
+            </p>
+          )}
         </div>
       )}
     </section>

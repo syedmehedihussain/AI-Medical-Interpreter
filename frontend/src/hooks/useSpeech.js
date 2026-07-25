@@ -170,7 +170,11 @@ export function useSpeech({ lang, onFinalResult }) {
       if (browserCode === 'aborted') return
 
       const code = mapBrowserError(browserCode)
-      setError({ code })
+      // `detail` carries the raw browser string for diagnosis only. It is
+      // never used for control flow and never shown as the primary message,
+      // so the seam's rule still holds: callers switch on `code` alone.
+      setError({ code, detail: browserCode, message: event?.message || null })
+      console.warn('[useSpeech] recognition error:', browserCode, event?.message || '')
 
       // Permission and hardware failures are terminal: retrying in a loop
       // just re-triggers the same denial.

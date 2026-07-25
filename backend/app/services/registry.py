@@ -13,6 +13,8 @@ from typing import Callable
 
 from app.config import get_settings
 from app.services.base import TranslationProvider
+from app.services.google import GoogleProvider
+from app.services.mymemory import MyMemoryProvider
 from app.services.stub import StubProvider
 
 
@@ -26,9 +28,12 @@ class ProviderConfigurationError(RuntimeError):
     """
 
 
-# name -> factory. Stage 2 adds "google": GoogleProvider here.
+# name -> factory. Adding a provider is one line here plus one new file; no
+# router, model, or frontend code changes. That is the seam's whole purpose.
 _PROVIDERS: dict[str, Callable[[], TranslationProvider]] = {
     "stub": StubProvider,
+    "mymemory": MyMemoryProvider,
+    "google": GoogleProvider,
 }
 
 

@@ -10,6 +10,26 @@ Add an entry whenever a choice was non-obvious, when something was rejected, or 
 
 ---
 
+## D-014 · 2026-07-25 · Add MyMemory as a keyless development provider
+
+**Context.** Google Cloud Translation requires a project with billing enabled. That account setup had not happened, so every translation in the running app was returning the stub's `[bn] <text>` echo. The pipeline was complete and correct end to end, and the product still looked broken to anyone using it, because the one thing a translation app must do was visibly not happening.
+
+**Options.** (a) Wait for the Google key and demo with the stub until then. (b) Make the stub's placeholder nature louder in the UI. (c) Add a second real provider that needs no credentials.
+
+**Choice.** (c). MyMemory's anonymous API: no key, no signup, supports Bengali. `TRANSLATION_PROVIDER=mymemory` in development. The Google provider was written in the same change and is registered and ready.
+
+**Reasoning.** Being blocked on a billing form is not an engineering constraint, and "it works apart from the translation" is not a demonstrable state. MyMemory removes the block in an afternoon.
+
+It also, usefully, proves the seam rather than asserting it. Adding two providers cost two lines in `registry.py` plus one new file each. No router, no model, no frontend code changed. That is a better answer to "why is there a provider interface?" than a diagram.
+
+**Consequences.** MyMemory's quality is below Google's, noticeably so on short phrases: "How are you?" returned `আপনি একটি মেয়ে` ("you are a girl"). Full clinical sentences are good -- "How long have you had this pain?" returned `আপনি কতদিন ধরে এই ব্যথা ভোগ করছেন?`, which is correct. The anonymous quota is roughly 5000 characters a day.
+
+**This is a development stopgap, not the shipped provider.** Google remains the target for the deployed build and for anything shown as a quality result. Do not present MyMemory output as representative when discussing translation quality, since the general-domain weakness argument in `scope.md` section 7 depends on measuring the *right* baseline.
+
+**Revisit** the moment a Google API key exists: set `TRANSLATION_PROVIDER=google` and re-run the Stage 2 gate.
+
+---
+
 ## D-013 · 2026-07-25 · Accept React 19 and Vite 8 instead of the pinned 18 and 5
 
 **Context.** `stack.md` section 1 locks React at 18.x and Vite at 5.x. Running `npm create vite@latest -- --template react` in July 2026 scaffolds React 19.2.7 and Vite 8.1.5. The pinned versions were written when they were current; they no longer are.
