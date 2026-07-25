@@ -119,6 +119,7 @@ The default is `mymemory` so that a fresh clone translates for real with no setu
 |---|---|---|
 | `TRANSLATION_PROVIDER` | `mymemory` | `stub`, `mymemory`, or `google` |
 | `GOOGLE_TRANSLATE_API_KEY` | empty | Only read when the provider is `google` |
+| `TTS_PROVIDER` | `google_translate` | Serves `GET /api/speech`, used when the browser has no local voice |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | CORS allowlist, comma-separated, no trailing slash |
 | `REQUEST_TIMEOUT_SECONDS` | `15` | Upstream provider timeout |
 
@@ -162,7 +163,7 @@ Documented tradeoffs, not defects.
 
 - **Chrome and Edge only for voice.** The Web Speech API is absent in Firefox and partial in Safari. Detected at runtime, with the typing fallback opened automatically.
 - **Requires an internet connection.** Both speech recognition and translation are cloud calls.
-- **Bangla text-to-speech is inconsistent across systems.** Android and Windows usually ship a Bangla voice; many Linux installs and older iOS builds do not. Where none exists the speaker button is disabled with an explanation and the text remains readable.
+- **Bangla text-to-speech depends on the operating system.** Android and Windows usually ship a Bangla voice; many Linux installs and older iOS builds do not. Where no local voice exists the app falls back to server-side speech via `GET /api/speech` ([decisions.md](docs/decisions.md) D-016). The development TTS provider is an undocumented Google endpoint with no service guarantee; the deployed build should use Google Cloud Text-to-Speech.
 - **General-domain translation.** No medical vocabulary tuning. This is precisely the gap the later thesis work aims to close, so it is a finding rather than a failure.
 - **Standard Bangla only.** No Sylheti or Chatgaiya support. The response envelope already carries a `detected_dialect` field for when that arrives.
 - **The transcript is lost on refresh.** It lives in React state only. The empty-state copy says so.

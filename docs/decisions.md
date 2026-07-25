@@ -10,6 +10,32 @@ Add an entry whenever a choice was non-obvious, when something was rejected, or 
 
 ---
 
+## D-016 · 2026-07-26 · Add server-side text-to-speech as a fallback
+
+**Context.** `stack.md` section 1 locks text-to-speech to the browser's Web Speech Synthesis API. That API can only use voices the operating system already has. The developer's desktop Chrome has no Bangla voice, so half the product was silent, and the first attempt at handling this correctly (refusing to speak rather than mispronouncing, D-015's companion fix) made the silence total. "It is not talking to me back at all" is a fair description of a translation app that cannot speak.
+
+No frontend change can fix this. The missing piece is on the machine, not in the code.
+
+**Options.** (a) Ask every operator to install a system voice. (b) Accept desktop silence and demo on Android, which ships a Bangla voice. (c) Add a server-side TTS endpoint used when no local voice exists.
+
+**Choice.** (c), decided by the developer after the tradeoffs were laid out.
+
+**Reasoning.** (a) fixes one machine and not the examiner's. (b) is real -- `prd.md`'s scenario is a doctor holding a phone, and Android does have Bangla TTS -- but it makes the demo dependent on which device is in the room, which is a bad thing to discover during a presentation.
+
+(c) makes speech a property of the application rather than of whoever's laptop it runs on. Local voices are still preferred when present: lower latency, works offline, no bandwidth. The server is a fallback, not a replacement.
+
+**Consequences.**
+
+- **A fifth seam.** `services/tts_base.py` is shaped exactly like seam 1, so Google Cloud Text-to-Speech, or a self-hosted model, is one new file plus one environment variable.
+- **`GET /api/speech` is the only endpoint that does not return the `schema.md` envelope**, because a successful response is audio. Errors still return the standard error envelope, so frontend failure handling is unchanged. GET rather than POST so an `<audio>` element can load the URL directly and get streaming and buffering for free.
+- **The development provider is an undocumented Google endpoint with no service guarantee.** Same tradeoff as D-014: no credentials, so it works today. It could break without notice. The deployed build should use Google Cloud Text-to-Speech. Documented as a known limitation.
+- Audio is cached for a day by URL, so a repeated phrase costs no second round trip.
+- Autoplay may be blocked by the browser until a user gesture has occurred. Handled silently; pressing the speaker button is itself the gesture.
+
+**Revisit** when a Google Cloud key exists: add `google_cloud` to `_TTS_PROVIDERS` and switch `TTS_PROVIDER`. Also revisit at v0.4, when server-side audio is already in play for Whisper and the two could share a transport.
+
+---
+
 ## D-015 · 2026-07-26 · Buffer finalised speech segments instead of translating each one
 
 **Context.** `prd.md` F-2 specifies that a finalised phrase is sent for translation immediately. In real use, Chrome finalises a segment on every brief pause, including mid-sentence thinking pauses. The first live test produced exactly the predicted failure: "it cuts off in the middle sometimes." A sentence like "I have chest pain ... since yesterday" arrived as two final results and became two half-sentence translations.

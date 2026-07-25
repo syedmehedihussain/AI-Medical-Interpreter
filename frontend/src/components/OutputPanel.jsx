@@ -110,8 +110,8 @@ export default function OutputPanel({
           missing and that the text is still usable. */}
       {text && !hasVoice && (
         <p className="mt-2 text-xs text-slate-500">
-          No {getDisplayLabel(lang)} voice is installed on this device, so the translation
-          is not read aloud. The text above is still correct.
+          Speech is unavailable for {getDisplayLabel(lang)} on this device and the server
+          could not supply it either. The text above is still correct.
         </p>
       )}
 

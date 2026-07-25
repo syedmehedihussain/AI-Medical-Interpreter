@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # string and splitting it in allowed_origins_list avoids that entirely.
     allowed_origins: str = "http://localhost:5173"
 
+    # Which text-to-speech provider serves GET /api/speech. Used only when the
+    # browser has no local voice for the target language (decisions.md D-016).
+    tts_provider: str = "google_translate"
+
     # Seconds to wait on the upstream translation provider. Used from Stage 2.
     request_timeout_seconds: float = 15.0
 

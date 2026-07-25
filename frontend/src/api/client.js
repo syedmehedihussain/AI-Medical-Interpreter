@@ -102,6 +102,19 @@ export function getLanguages({ signal } = {}) {
   return request('/api/languages', { signal })
 }
 
+/**
+ * URL for server-side speech audio.
+ *
+ * Returns a URL rather than fetching, so an <audio> element can load it
+ * directly and get streaming, buffering, and playback control for free
+ * instead of us hand-managing a blob. This is the one endpoint that returns
+ * audio rather than the JSON envelope.
+ */
+export function speechUrl({ text, lang }) {
+  const params = new URLSearchParams({ text, lang })
+  return `${BASE_URL}/api/speech?${params.toString()}`
+}
+
 export function translate({ text, sourceLang, targetLang, context = 'general', signal }) {
   return request('/api/translate/text', {
     method: 'POST',

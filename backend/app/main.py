@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.deps import make_request_id
 from app.errors import TorongoError
 from app.models import ErrorCode, ErrorDetail, ErrorEnvelope, ResponseMeta
-from app.routers import health, languages, translate
+from app.routers import health, languages, speech, translate
 
 logging.basicConfig(
     level=logging.INFO,
@@ -138,6 +138,7 @@ async def handle_unexpected_error(request: Request, exc: Exception) -> JSONRespo
 app.include_router(health.router, prefix="/api")
 app.include_router(languages.router, prefix="/api")
 app.include_router(translate.router, prefix="/api")
+app.include_router(speech.router, prefix="/api")
 
 
 @app.get("/", include_in_schema=False)
