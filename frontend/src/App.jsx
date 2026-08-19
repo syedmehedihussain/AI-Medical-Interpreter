@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getHealth } from './api/client'
-import CapturePanel from './components/CapturePanel'
+import Composer from './components/Composer'
+import Conversation from './components/Conversation'
+import DirectionBar from './components/DirectionBar'
 import Header from './components/Header'
-import LanguageBar from './components/LanguageBar'
-import ManualInput from './components/ManualInput'
-import OutputPanel from './components/OutputPanel'
-import Transcript from './components/Transcript'
+import Home from './components/Home'
+import { COPY } from './lib/messages'
 import { useSpeak } from './hooks/useSpeak'
-import { SPEECH_ERROR, useSpeech } from './hooks/useSpeech'
+import { useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
@@ -54,15 +54,21 @@ function loadAutoplay() {
 }
 
 export default function App() {
+  // Two views, no router: the marketing home and the interpreter tool. A plain
+  // state toggle is enough for one transition and avoids pulling in a routing
+  // dependency for two screens.
+  const [view, setView] = useState('home')
   const [{ sourceLang, targetLang }, setLanguagePair] = useState(loadLanguagePair)
   const [backendReachable, setBackendReachable] = useState(null)
-  const [manualOpen, setManualOpen] = useState(false)
   const [autoplay, setAutoplay] = useState(loadAutoplay)
   const [entries, setEntries] = useState([])
   const [lastFinalText, setLastFinalText] = useState('')
-  const [truncated, setTruncated] = useState(false)
+  // The utterance currently being sent/translated, shown as an in-flight chat
+  // turn (source bubble + translating dots). Cleared on success; kept on error
+  // so the failed turn stays visible with a retry.
+  const [pendingSource, setPendingSource] = useState(null)
 
-  const { translate, isLoading, error, result } = useTranslate()
+  const { translate, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
 
   const lastRequestRef = useRef(null)
@@ -104,9 +110,11 @@ export default function App() {
   const runTranslation = useCallback(
     async (rawText, { inputMode = 'typed' } = {}) => {
       const text = rawText.slice(0, MAX_SEGMENT_LENGTH)
-      setTruncated(rawText.length > MAX_SEGMENT_LENGTH)
 
       lastRequestRef.current = { text, inputMode }
+      // Show the sent turn immediately, before the network answers, so the
+      // chat feels responsive (E-17 race handling still lives in useTranslate).
+      setPendingSource({ text, inputMode, sourceLang, targetLang })
       const data = await translate({ text, sourceLang, targetLang })
       if (!data) return null
 
@@ -129,6 +137,8 @@ export default function App() {
           riskFlags: data.risk_flags ?? [],
         },
       ])
+      // The turn is now committed to the transcript; drop the in-flight copy.
+      setPendingSource(null)
 
       if (autoplay) speak.speak(data.translated_text)
       return data
@@ -162,6 +172,8 @@ export default function App() {
     }
     const buffered = segmentBufferRef.current.join(' ').trim()
     segmentBufferRef.current = []
+    // Clear the live dictation bubble; the sent turn now lives in pendingSource.
+    setLastFinalText('')
     if (buffered) runTranslation(buffered, { inputMode: 'voice' })
   }, [runTranslation])
 
@@ -201,20 +213,9 @@ export default function App() {
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
   }, [])
 
-  // prd.md E-1 and E-2: when voice cannot work, the typing path is the whole
-  // app, so it opens by default rather than staying behind a disclosure.
-  useEffect(() => {
-    if (!speech.isSupported) setManualOpen(true)
-  }, [speech.isSupported])
-
-  useEffect(() => {
-    if (
-      speech.error?.code === SPEECH_ERROR.PERMISSION_DENIED ||
-      speech.error?.code === SPEECH_ERROR.NO_MICROPHONE
-    ) {
-      setManualOpen(true)
-    }
-  }, [speech.error])
+  // The composer always shows a text field, so there is no separate "open the
+  // typing panel" state to manage when voice is unavailable (prd.md E-1, E-2):
+  // typing is always available right where the mic would be.
 
   // A network failure means Offline; a 400 or 500 does not, because the server
   // plainly answered.
@@ -241,53 +242,60 @@ export default function App() {
   else if (speech.isListening) status = 'listening'
   else if (isLoading) status = 'translating'
 
+  if (view === 'home') {
+    return <Home onStart={() => setView('tool')} />
+  }
+
+  // The tool as a calm, centered chat surface floating on the warm canvas:
+  // header, a compact direction control, the conversation stream, and one
+  // composer at the bottom. Speak or type; each turn is your words plus their
+  // translation, not a back-and-forth with a bot.
+  const liveText = [lastFinalText, speech.interimText].filter(Boolean).join(' ')
+
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-white shadow-sm">
-      <Header status={status} />
+    <div className="flex h-[100dvh] flex-col px-0 py-0 sm:px-4 sm:py-6">
+      <div className="mx-auto flex h-full w-full max-w-2xl animate-rise-in flex-col overflow-hidden border-slate-200 bg-white shadow-xl shadow-slate-900/[0.06] sm:rounded-3xl sm:border">
+        <Header status={status} onBack={() => setView('home')} />
 
-      <LanguageBar
-        sourceLang={sourceLang}
-        targetLang={targetLang}
-        onChange={handleLanguageChange}
-      />
+        <DirectionBar
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          onChange={handleLanguageChange}
+          autoplay={autoplay}
+          onAutoplayChange={setAutoplay}
+          hasEntries={entries.length > 0}
+          onClear={() => {
+            if (window.confirm(COPY.clearConfirm)) {
+              setEntries([])
+              setPendingSource(null)
+            }
+          }}
+        />
 
-      <CapturePanel
-        isListening={speech.isListening}
-        interimText={speech.interimText}
-        lastFinalText={lastFinalText}
-        error={speech.error}
-        isSupported={speech.isSupported}
-        truncated={truncated}
-        sourceLang={sourceLang}
-        onStart={speech.start}
-        onStop={stopListening}
-      />
+        <Conversation
+          entries={entries}
+          pending={pendingSource}
+          isTranslating={isLoading}
+          error={error}
+          onRetry={retry}
+          liveText={liveText}
+          isListening={speech.isListening}
+          sourceLang={sourceLang}
+          onSpeak={speak.speak}
+          isSpeaking={speak.isSpeaking}
+          hasVoice={speak.hasVoice}
+        />
 
-      <ManualInput
-        open={manualOpen}
-        onOpenChange={setManualOpen}
-        onSubmit={(text) => {
-          setLastFinalText(text)
-          runTranslation(text, { inputMode: 'typed' })
-        }}
-        isLoading={isLoading}
-        sourceLang={sourceLang}
-      />
-
-      <OutputPanel
-        result={result}
-        isLoading={isLoading}
-        error={error}
-        targetLang={targetLang}
-        onRetry={retry}
-        onSpeak={speak.speak}
-        isSpeaking={speak.isSpeaking}
-        hasVoice={speak.hasVoice}
-        autoplay={autoplay}
-        onAutoplayChange={setAutoplay}
-      />
-
-      <Transcript entries={entries} onClear={() => setEntries([])} />
+        <Composer
+          isListening={speech.isListening}
+          isSupported={speech.isSupported}
+          onStart={speech.start}
+          onStop={stopListening}
+          onSubmit={(text) => runTranslation(text, { inputMode: 'typed' })}
+          sourceLang={sourceLang}
+          speechError={speech.error}
+        />
+      </div>
     </div>
   )
 }

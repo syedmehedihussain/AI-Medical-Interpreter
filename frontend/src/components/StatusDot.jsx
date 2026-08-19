@@ -8,7 +8,7 @@ import { STATUS_LABELS } from '../lib/messages'
  * colour blindness, a monochrome screen, and a glance from a metre away.
  */
 const STATES = {
-  ready: { dot: 'bg-emerald-600', shape: 'rounded-full', pulse: false },
+  ready: { dot: 'bg-brand-600', shape: 'rounded-full', pulse: false },
   // A square reads differently from a circle even at a glance or in greyscale.
   listening: { dot: 'bg-sky-600', shape: 'rounded-sm', pulse: true },
   translating: { dot: 'bg-amber-500', shape: 'rounded-sm rotate-45', pulse: true },

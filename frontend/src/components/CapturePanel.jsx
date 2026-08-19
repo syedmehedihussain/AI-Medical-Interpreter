@@ -84,18 +84,22 @@ export default function CapturePanel({
           type="button"
           onClick={isListening ? onStop : onStart}
           aria-pressed={isListening}
-          className={`flex w-full items-center justify-center gap-3 rounded-xl px-6 py-4 text-lg font-semibold text-white transition active:scale-[0.99] ${
-            isListening ? 'bg-slate-800 hover:bg-slate-900' : 'bg-sky-700 hover:bg-sky-800'
+          className={`flex w-full items-center justify-center gap-3 rounded-full px-6 py-4 text-lg font-semibold text-white shadow-lg transition active:scale-[0.99] ${
+            isListening
+              ? 'bg-slate-800 shadow-slate-900/20 hover:bg-slate-900'
+              : 'bg-brand-700 shadow-brand-700/25 hover:bg-brand-800'
           }`}
         >
-          <span
-            className={`inline-block h-3 w-3 rounded-full bg-white ${
-              // Motion is a redundant cue only; the label already says which
-              // state this is, and reduced-motion disables the animation.
-              isListening ? 'animate-pulse' : ''
-            }`}
-            aria-hidden="true"
-          />
+          {isListening ? (
+            // A pulsing dot: motion is a redundant cue only; the label already
+            // says the state, and reduced-motion disables the animation.
+            <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-white" aria-hidden="true" />
+          ) : (
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
+            </svg>
+          )}
           {isListening ? COPY.activeButton : COPY.idleButton}
         </button>
       ) : (

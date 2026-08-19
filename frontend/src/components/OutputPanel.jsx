@@ -50,7 +50,7 @@ export default function OutputPanel({
               type="checkbox"
               checked={autoplay}
               onChange={(event) => onAutoplayChange(event.target.checked)}
-              className="h-3.5 w-3.5 rounded border-slate-300 accent-sky-700"
+              className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-700"
             />
             Auto-play
           </label>

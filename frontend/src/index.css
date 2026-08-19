@@ -1,6 +1,6 @@
 /* Bengali webfont loaded explicitly, not left to the system (prd.md E-23).
    Without this, Bangla renders as boxes on a machine with no Bengali font. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,13 +12,13 @@
   }
 
   body {
-    @apply bg-slate-100 text-slate-900 antialiased;
+    @apply bg-canvas text-slate-900 antialiased;
   }
 
   /* prd.md section 6: every control reachable by Tab with a visible focus
      ring. Set globally so no component can forget it. */
   :focus-visible {
-    @apply outline-none ring-2 ring-sky-600 ring-offset-2;
+    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-canvas;
   }
 }
 
@@ -26,6 +26,19 @@
   /* Bengali needs more vertical room than Latin at the same nominal size. */
   .font-bn {
     font-family: 'Noto Sans Bengali', 'Inter', system-ui, sans-serif;
+  }
+
+  /* Editorial display: tighter tracking and leading for the large hero type,
+     so a multi-line headline reads as one confident block, not stacked lines. */
+  .text-display {
+    letter-spacing: -0.03em;
+    line-height: 0.98;
+  }
+
+  /* The organic green shape behind the hero (design reference: Aida's blob).
+     An asymmetric border-radius reads as hand-drawn rather than a plain circle. */
+  .blob {
+    border-radius: 42% 58% 57% 43% / 45% 44% 56% 55%;
   }
 }
 
