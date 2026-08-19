@@ -15,12 +15,14 @@ later step (decisions.md D-011). The wrong-script safety guard in quality.py
 runs on this provider's output just as it does on every other provider's.
 """
 
+import asyncio
 import logging
 
 import httpx
 
 from app.config import get_settings
 from app.errors import (
+    AppError,
     ProviderRateLimitedError,
     ProviderTimeoutError,
     ProviderUnavailableError,
@@ -28,6 +30,15 @@ from app.errors import (
 from app.models import TranslationResult
 
 logger = logging.getLogger(__name__)
+
+# Free-tier Gemini keys occasionally return a transient 403/timeout on
+# back-to-back calls that succeeds on an immediate retry (observed during
+# testing). A live clinical demo failing a single translation looks bad, so
+# each request is attempted a few times with a short linear backoff before the
+# error is surfaced. Non-transient mistakes (missing key, unmapped language)
+# are raised before the loop and never retried.
+MAX_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 0.6
 
 # {model} is substituted with settings.gemini_model at call time. The API key is
 # sent in the x-goog-api-key header rather than the URL so it never lands in a
@@ -108,6 +119,23 @@ class GeminiProvider:
         url = ENDPOINT.format(model=settings.gemini_model)
         prompt = build_prompt(text, source_name, target_name)
 
+        # Retry loop for transient failures. Every provider error here is
+        # retryable=True, so the last attempt's exception is the one surfaced.
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                return await self._attempt(url, prompt, settings)
+            except AppError as exc:
+                if attempt < MAX_ATTEMPTS:
+                    logger.warning(
+                        "gemini attempt %d/%d failed (%s); retrying",
+                        attempt, MAX_ATTEMPTS, exc.code.value,
+                    )
+                    await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
+                    continue
+                raise
+
+    async def _attempt(self, url: str, prompt: str, settings) -> TranslationResult:
+        """One request/parse cycle. Raises a provider AppError on any failure."""
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
                 response = await client.post(
