@@ -1,0 +1,34 @@
+# Render Blueprint — AI Medical Interpreter backend (FastAPI).
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> select this repo.
+# Render reads this file, and prompts you for the `sync: false` secrets
+# (GEMINI_API_KEY, ALLOWED_ORIGINS) during the initial Blueprint creation.
+#
+# Free tier note: the service sleeps after ~15 min idle; the first request
+# after that takes ~50s to wake. Hit /api/health once before a live demo.
+services:
+  - name: ai-medical-interpreter-api
+    type: web
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: TRANSLATION_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.7-flash
+      # Secret: entered in the Render dashboard, never committed.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Set to the Vercel frontend URL, no trailing slash, e.g.
+      # https://ai-medical-interpreter.vercel.app  (comma-separate to add
+      # preview URLs). Entered in the dashboard.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Matches local dev. If Render rejects it, drop this line to use the
+      # platform default Python.
+      - key: PYTHON_VERSION
+        value: "3.12.3"
