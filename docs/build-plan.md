@@ -1,6 +1,6 @@
 # build-plan.md
 
-**Torongo v0.1 — Ordered Task List**
+**AI Medical Interpreter v0.1 — Ordered Task List**
 Last updated: 2026-07-20
 
 Ordered so that something works at the end of every stage. Do not skip ahead. Each task has an acceptance check — if you can't tick it, don't move on.
@@ -17,7 +17,7 @@ Nothing to build. Get the tools working.
 |---|---|---|
 | 0.1 | Install Node 20+, Python 3.11+, Git, VS Code | `node -v`, `python --version`, `git --version` all print versions |
 | 0.2 | Install Claude Code | `claude` runs in the terminal |
-| 0.3 | Create the GitHub repo `torongo`, clone it locally | Folder exists with `.git` inside |
+| 0.3 | Create the GitHub repo `ai-medical-interpreter`, clone it locally | Folder exists with `.git` inside |
 | 0.4 | Copy the six `docs/*.md` files into the repo | `docs/` has scope, prd, stack, schema, build-plan, decisions |
 | 0.5 | Create `CLAUDE.md` at the repo root | File exists and names the stack |
 | 0.6 | Create `.gitignore` | Covers `node_modules/`, `__pycache__/`, `.env`, `venv/`, `dist/` |
@@ -204,7 +204,7 @@ Clinical context selector wired to a prompt-based LLM provider, session summarie
 **v0.4 — Server-side ASR**
 Whisper behind a WebSocket endpoint, `useSpeech.js` swapped to stream audio, browser ASR kept as a fallback. Cross-browser support arrives here.
 
-**v1.0 — TorongoNet**
+**v1.0 — the fine-tuned medical model**
 Dataset collection, NLLB fine-tuning, the model exposed as a `TranslationProvider`, WER/BLEU/TER evaluation, dialect identification, safety flagging.
 
 Each of these fits the seams already in the code. That is the point of v0.1.

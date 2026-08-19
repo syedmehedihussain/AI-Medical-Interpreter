@@ -1,6 +1,6 @@
 # stack.md
 
-**Torongo v0.1 — Locked Technology Decisions**
+**AI Medical Interpreter v0.1 — Locked Technology Decisions**
 Last updated: 2026-07-25
 
 These are decided. Do not relitigate them mid-build. If something genuinely has to change, record it in `decisions.md` with the reason.
@@ -32,7 +32,7 @@ These are decided. Do not relitigate them mid-build. If something genuinely has 
 ## 2. Repository layout
 
 ```
-torongo/
+AI-Medical-Interpreter/
 ├── CLAUDE.md                    # instructions for Claude Code
 ├── README.md                    # setup + run instructions
 ├── .gitignore
@@ -157,7 +157,7 @@ class TranslationProvider(Protocol):
     ) -> TranslationResult: ...
 ```
 
-Routers depend on this protocol, never on Google. Swapping to a self-hosted TorongoNet means adding `services/torongonet.py` and changing one env var.
+Routers depend on this protocol, never on Google. Swapping to a self-hosted fine-tuned medical model means adding `services/medical_model.py` and changing one env var.
 
 **Seam 2 — `backend/app/deps.py`**
 

@@ -11,8 +11,8 @@ import { SPEECH_ERROR, useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
-const PAIR_KEY = 'torongo.languagePair'
-const AUTOPLAY_KEY = 'torongo.autoplay'
+const PAIR_KEY = 'ami.languagePair'
+const AUTOPLAY_KEY = 'ami.autoplay'
 
 // prd.md E-11: cap a finalised segment before sending. The backend rejects
 // anything longer, so trimming here turns a hard error into a soft note.

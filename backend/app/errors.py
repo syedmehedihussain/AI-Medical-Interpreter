@@ -16,7 +16,7 @@ handler for the base class.
 from app.models import ErrorCode
 
 
-class TorongoError(Exception):
+class AppError(Exception):
     """Base class carrying a code, a user-facing message, a status, and retryability."""
 
     code: ErrorCode = ErrorCode.INTERNAL_ERROR
@@ -37,35 +37,35 @@ class TorongoError(Exception):
 # --- Input errors. Not retryable: the same request will fail the same way. ---
 
 
-class EmptyInputError(TorongoError):
+class EmptyInputError(AppError):
     code = ErrorCode.EMPTY_INPUT
     status_code = 400
     retryable = False
     message = "Enter some text to translate."
 
 
-class SameLanguageError(TorongoError):
+class SameLanguageError(AppError):
     code = ErrorCode.SAME_LANGUAGE
     status_code = 400
     retryable = False
     message = "Choose two different languages."
 
 
-class UnsupportedLanguageError(TorongoError):
+class UnsupportedLanguageError(AppError):
     code = ErrorCode.UNSUPPORTED_LANGUAGE
     status_code = 400
     retryable = False
     message = "That language isn't supported yet."
 
 
-class TextTooLongError(TorongoError):
+class TextTooLongError(AppError):
     code = ErrorCode.TEXT_TOO_LONG
     status_code = 400
     retryable = False
     message = "That's too long to translate at once. Keep it under 500 characters."
 
 
-class ValidationError(TorongoError):
+class ValidationError(AppError):
     code = ErrorCode.VALIDATION_ERROR
     status_code = 422
     retryable = False
@@ -75,7 +75,7 @@ class ValidationError(TorongoError):
 # --- Provider errors. Retryable: the same request may succeed later. ---
 
 
-class ProviderUnavailableError(TorongoError):
+class ProviderUnavailableError(AppError):
     """Upstream is down, or the API key is missing or rejected.
 
     Deliberately one error for all three. schema.md 2.1 and prd.md E-16 require
@@ -90,21 +90,21 @@ class ProviderUnavailableError(TorongoError):
     message = "Translation service unavailable."
 
 
-class ProviderRateLimitedError(TorongoError):
+class ProviderRateLimitedError(AppError):
     code = ErrorCode.PROVIDER_RATE_LIMITED
     status_code = 429
     retryable = True
     message = "Too many requests right now. Wait a moment and try again."
 
 
-class ProviderTimeoutError(TorongoError):
+class ProviderTimeoutError(AppError):
     code = ErrorCode.PROVIDER_TIMEOUT
     status_code = 504
     retryable = True
     message = "That took too long. Try again."
 
 
-class InternalError(TorongoError):
+class InternalError(AppError):
     code = ErrorCode.INTERNAL_ERROR
     status_code = 500
     retryable = True

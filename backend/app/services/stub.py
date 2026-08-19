@@ -36,5 +36,5 @@ class StubProvider:
         # The four clinical fields (detected_dialect, confidence, risk_flags,
         # needs_review) are left at their TranslationResult defaults of
         # None/None/[]/False. A general translation API has nothing to put in
-        # them and neither does a stub. TorongoNet will (decisions.md D-011).
+        # them and neither does a stub. the fine-tuned medical model will (decisions.md D-011).
         return TranslationResult(translated_text=f"[{target_lang}] {text}")

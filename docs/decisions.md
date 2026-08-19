@@ -1,6 +1,6 @@
 # decisions.md
 
-**Torongo — Decision Log**
+**AI Medical Interpreter — Decision Log**
 
 A running record of what was chosen and why. Newest entries go at the top.
 
@@ -148,7 +148,7 @@ The locked-stack rule in `stack.md` exists to stop mid-build churn over preferen
 
 ## D-011 · 2026-07-20 · Freeze the response envelope before it's needed
 
-**Context.** A general translation API returns none of `confidence`, `risk_flags`, `detected_dialect`, or `needs_review`. TorongoNet will return all of them.
+**Context.** A general translation API returns none of `confidence`, `risk_flags`, `detected_dialect`, or `needs_review`. the fine-tuned medical model will return all of them.
 
 **Options.** (a) Return only what Google gives, add fields later. (b) Include all fields now as `null` / `[]` / `false`.
 

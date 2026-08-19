@@ -32,15 +32,28 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Torongo"
+    app_name: str = "AI Medical Interpreter"
     version: str = "0.1.0"
 
-    # stub | mymemory | google_free | google
+    # stub | mymemory | google_free | google | gemini
     translation_provider: str = "google_free"
 
     # Deliberately optional. A missing key must not stop the server starting;
     # it only means the google provider is not ready. See google_ready below.
     google_translate_api_key: str | None = None
+
+    # Google AI Studio (Gemini) API key. Only read when TRANSLATION_PROVIDER is
+    # "gemini". A Gemini key is a different product from the Cloud Translation
+    # key above: it drives generativelanguage.googleapis.com, not
+    # translation.googleapis.com, so the two are not interchangeable. Like the
+    # Google key, a missing value never stops the server; it only makes the
+    # gemini provider report not-ready. See gemini_ready below.
+    gemini_api_key: str | None = None
+
+    # Which Gemini model the gemini provider calls. A flash-tier model is fast
+    # and cheap enough for one-sentence clinical translation. Overridable so a
+    # newer model can be adopted without a code change.
+    gemini_model: str = "gemini-3.7-flash"
 
     # Comma-separated, not a list. pydantic-settings tries to JSON-parse any
     # field typed as list[str], so ALLOWED_ORIGINS=http://localhost:5173 would
@@ -67,6 +80,15 @@ class Settings(BaseSettings):
         Consumed by GET /api/health as provider_ready (docs/schema.md 2.2).
         """
         return bool(self.google_translate_api_key and self.google_translate_api_key.strip())
+
+    @property
+    def gemini_ready(self) -> bool:
+        """True when a Google AI Studio (Gemini) API key is configured.
+
+        Consumed by GET /api/health as provider_ready when TRANSLATION_PROVIDER
+        is "gemini", mirroring google_ready.
+        """
+        return bool(self.gemini_api_key and self.gemini_api_key.strip())
 
 
 @lru_cache

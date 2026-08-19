@@ -2,7 +2,7 @@
 
 This is the most important architectural piece in v0.1 (stack.md section 4,
 decisions.md D-008). Routers depend on this Protocol and never on a vendor, so
-swapping Google for Microsoft, or eventually for a self-hosted TorongoNet, is
+swapping Google for Microsoft, or eventually for a self-hosted fine-tuned medical model, is
 one new file in this package plus one environment variable. No router changes.
 
 The signature below is quoted verbatim from stack.md section 4. Do not widen or

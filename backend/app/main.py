@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.deps import make_request_id
-from app.errors import TorongoError
+from app.errors import AppError
 from app.models import ErrorCode, ErrorDetail, ErrorEnvelope, ResponseMeta
 from app.routers import health, languages, speech, translate
 
@@ -77,8 +77,8 @@ def _error_response(request: Request, code: ErrorCode, message: str,
     return response
 
 
-@app.exception_handler(TorongoError)
-async def handle_torongo_error(request: Request, exc: TorongoError) -> JSONResponse:
+@app.exception_handler(AppError)
+async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     """Every error the app raises on purpose.
 
     exc.message is written for the end user and is safe to return. exc.log_detail

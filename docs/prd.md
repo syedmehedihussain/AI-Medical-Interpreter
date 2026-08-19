@@ -1,6 +1,6 @@
 # prd.md
 
-**Torongo v0.1 — Product Requirements**
+**AI Medical Interpreter v0.1 — Product Requirements**
 Last updated: 2026-07-20
 
 ---
@@ -17,7 +17,7 @@ One page. Top to bottom:
 
 ```
 ┌──────────────────────────────────────────┐
-│  Torongo                    ● Ready      │  header + engine status
+│  AI Medical Interpreter                    ● Ready      │  header + engine status
 ├──────────────────────────────────────────┤
 │   [ English  ]   ⇄   [ বাংলা ]            │  language bar
 ├──────────────────────────────────────────┤
@@ -131,7 +131,7 @@ Each of these has a defined behavior. None of them may result in a blank screen 
 | # | Situation | Behavior |
 |---|---|---|
 | E-1 | Browser has no Speech Recognition API (Firefox) | On load, hide the listen button entirely, show a notice naming Chrome and Edge, and expand the manual text input by default. The app remains fully usable by typing. |
-| E-2 | Microphone permission denied | Stop listening, show: "Torongo needs microphone access to hear speech. Enable it in your browser's site settings, then try again." Manual input expands. |
+| E-2 | Microphone permission denied | Stop listening, show: "AI Medical Interpreter needs microphone access to hear speech. Enable it in your browser's site settings, then try again." Manual input expands. |
 | E-3 | Permission dismissed rather than denied | Same message. Button returns to "Start listening" so they can retry. |
 | E-4 | Page served over plain HTTP | Speech APIs require a secure context. Detect and show: "Voice input needs a secure connection. Open this page over HTTPS or on localhost." |
 | E-5 | No microphone hardware present | Caught as a recognition error; same message as E-2 with the hardware case mentioned. |
@@ -191,7 +191,7 @@ Fixed strings, so they stay consistent across the app.
 | Manual submit | Translate |
 | Output placeholder | Translation will appear here |
 | Transcript empty | Nothing yet. Start listening or type a sentence to begin. Session history clears when you refresh. |
-| Mic denied | Torongo needs microphone access to hear speech. Enable it in your browser's site settings, then try again. |
+| Mic denied | AI Medical Interpreter needs microphone access to hear speech. Enable it in your browser's site settings, then try again. |
 | Unsupported browser | Voice input isn't available in this browser. Use Chrome or Edge, or type your text below. |
 | Offline | Can't reach the translation service. Check your connection. |
 | Timeout | That took too long. Try again. |

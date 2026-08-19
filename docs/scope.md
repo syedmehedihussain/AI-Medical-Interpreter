@@ -1,6 +1,6 @@
 # scope.md
 
-**Project:** Torongo — Healthcare Translation Web App
+**Project:** AI Medical Interpreter — Healthcare Translation Web App
 **Version:** v0.1 (Walking Skeleton)
 **Course:** CSE309, Independent University Bangladesh
 **By:** Syed Mehedi Hussain and Sakib Al Hasan

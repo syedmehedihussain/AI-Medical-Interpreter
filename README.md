@@ -1,4 +1,4 @@
-# Torongo
+# AI Medical Interpreter
 
 Real-time English and Bangla translation for clinical consultations. A doctor speaks, sees a live caption of their own words, and the patient hears the sentence in their own language a moment later.
 
@@ -94,9 +94,12 @@ Set `TRANSLATION_PROVIDER` in `backend/.env`. Restart the backend after changing
 | `stub` | no | none — echoes `[bn] <your text>` | Working offline, or on the UI without spending quota |
 | `google_free` | no | real Google translation | **The default.** Development and demos |
 | `mymemory` | no | poor — returned Romanised Bangla and even Hindi on common phrases | Demonstrating the provider seam only |
-| `google` | yes | best | Deployment, and any measurement of translation quality |
+| `google` | yes (Cloud Translation) | best | Deployment, and any measurement of translation quality |
+| `gemini` | yes (Google AI Studio) | strong, medical-tuned | A Gemini model prompted to preserve drug names, dosages, and units |
 
-The default is `google_free` so that a fresh clone translates correctly with no setup at all. It uses an undocumented Google endpoint with no service guarantee ([decisions.md](docs/decisions.md) D-017), so the deployed build should use `google` with a real key.
+The default is `google_free` so that a fresh clone translates correctly with no setup at all. It uses an undocumented Google endpoint with no service guarantee ([decisions.md](docs/decisions.md) D-017), so the deployed build should use `google` or `gemini` with a real key.
+
+The `gemini` provider uses a Google AI Studio key, which is a **different product** from the Cloud Translation key the `google` provider needs — the two are not interchangeable. Because it drives a general model with a medical prompt rather than a translation-only API, it can keep clinical detail (`Napa 500mg`) intact. Get a key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (free tier available), put it in `backend/.env` as `GEMINI_API_KEY`, and set `TRANSLATION_PROVIDER=gemini`. The model is `GEMINI_MODEL` (default `gemini-3.7-flash`).
 
 Whatever the provider, the backend checks that a translation is actually in the target script and marks it `needs_review` with a `low_confidence` risk flag when it is not, which the UI surfaces as a warning. That guard exists because MyMemory once returned Hindi for a Bangla request.
 
@@ -120,8 +123,10 @@ Whatever the provider, the backend checks that a translation is actually in the 
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TRANSLATION_PROVIDER` | `google_free` | `stub`, `google_free`, `mymemory`, or `google` |
+| `TRANSLATION_PROVIDER` | `google_free` | `stub`, `google_free`, `mymemory`, `google`, or `gemini` |
 | `GOOGLE_TRANSLATE_API_KEY` | empty | Only read when the provider is `google` |
+| `GEMINI_API_KEY` | empty | Google AI Studio key, only read when the provider is `gemini` |
+| `GEMINI_MODEL` | `gemini-3.7-flash` | Which Gemini model the `gemini` provider calls |
 | `TTS_PROVIDER` | `google_translate` | Serves `GET /api/speech`, used when the browser has no local voice |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | CORS allowlist, comma-separated, no trailing slash |
 | `REQUEST_TIMEOUT_SECONDS` | `15` | Upstream provider timeout |

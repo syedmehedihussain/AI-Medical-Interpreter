@@ -13,6 +13,7 @@ from typing import Callable
 
 from app.config import get_settings
 from app.services.base import TranslationProvider
+from app.services.gemini import GeminiProvider
 from app.services.google import GoogleProvider
 from app.services.google_free import GoogleFreeProvider
 from app.services.mymemory import MyMemoryProvider
@@ -36,6 +37,7 @@ _PROVIDERS: dict[str, Callable[[], TranslationProvider]] = {
     "mymemory": MyMemoryProvider,
     "google_free": GoogleFreeProvider,
     "google": GoogleProvider,
+    "gemini": GeminiProvider,
 }
 
 
@@ -60,6 +62,8 @@ def provider_status() -> tuple[str, bool]:
         return configured, False
     if key == "google":
         return configured, settings.google_ready
+    if key == "gemini":
+        return configured, settings.gemini_ready
     return configured, True
 
 

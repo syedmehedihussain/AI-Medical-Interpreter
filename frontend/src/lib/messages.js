@@ -15,7 +15,7 @@ export const COPY = {
   transcriptEmpty:
     'Nothing yet. Start listening or type a sentence to begin. Session history clears when you refresh.',
   micDenied:
-    "Torongo needs microphone access to hear speech. Enable it in your browser's site settings, then try again.",
+    "AI Medical Interpreter needs microphone access to hear speech. Enable it in your browser's site settings, then try again.",
   unsupportedBrowser:
     "Voice input isn't available in this browser. Use Chrome or Edge, or type your text below.",
   offline: "Can't reach the translation service. Check your connection.",

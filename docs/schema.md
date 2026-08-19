@@ -1,6 +1,6 @@
 # schema.md
 
-**Torongo — Data Shapes, API Contracts, and Access Rules**
+**AI Medical Interpreter — Data Shapes, API Contracts, and Access Rules**
 Last updated: 2026-07-20
 
 v0.1 has no database. It still has data shapes, and those shapes are the thing that must not change later. This document defines them, then defines the tables they will eventually be stored in.
@@ -171,7 +171,7 @@ The one endpoint that matters. Maps to SRS FR-4.
 
 **On the four fields that are always empty in v0.1** — `detected_dialect`, `confidence`, `risk_flags`, `needs_review`:
 
-These are the whole reason this contract is worth writing down. A general translation API returns none of them. TorongoNet will return all of them. By including them now as `null` / `[]` / `false`:
+These are the whole reason this contract is worth writing down. A general translation API returns none of them. the fine-tuned medical model will return all of them. By including them now as `null` / `[]` / `false`:
 
 - Frontend components already handle their absence gracefully
 - Adding the real model changes no shape, no component, no type

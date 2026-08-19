@@ -10,7 +10,7 @@ import time
 from fastapi import APIRouter, Depends
 
 from app.deps import CurrentUser, get_current_user, new_request_id
-from app.errors import InternalError, TorongoError
+from app.errors import InternalError, AppError
 from app.models import Envelope, TranslateData, TranslateMeta, TranslateRequest
 from app.services.quality import check_translation
 from app.services.registry import get_provider
@@ -46,7 +46,7 @@ async def translate_text(
             target_lang=payload.target_lang,
             context=payload.context,
         )
-    except TorongoError:
+    except AppError:
         # Providers raise the contract's own errors (PROVIDER_TIMEOUT and
         # friends, from Stage 2 onward). Those are already correct; let them
         # travel to the handler untouched.

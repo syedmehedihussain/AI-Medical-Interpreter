@@ -105,7 +105,7 @@ class RiskFlag(BaseModel):
     """A single clinical safety flag on a translation.
 
     Nothing produces one of these in v0.1 -- risk_flags is always []. The shape
-    is defined now so that when TorongoNet starts emitting flags, no request or
+    is defined now so that when the fine-tuned medical model starts emitting flags, no request or
     response shape changes (D-011).
     """
 
@@ -125,14 +125,14 @@ class RiskFlag(BaseModel):
 class TranslateRequest(BaseModel):
     """Body of POST /api/translate/text.
 
-    Validation rules are schema.md 5.4. The validators raise TorongoError
+    Validation rules are schema.md 5.4. The validators raise AppError
     subclasses rather than ValueError, which is what gets each failure its own
     code and status (EMPTY_INPUT, SAME_LANGUAGE, UNSUPPORTED_LANGUAGE,
     TEXT_TOO_LONG) instead of collapsing them all into a 422.
 
     Why that works: Pydantic converts ValueError and AssertionError raised
     inside a validator into its own ValidationError, but lets any other
-    exception type propagate untouched. TorongoError inherits from Exception,
+    exception type propagate untouched. AppError inherits from Exception,
     so it travels out through FastAPI's body parsing and reaches the handler
     registered in main.py. Verified, not assumed.
 
@@ -212,7 +212,7 @@ class TranslationResult(BaseModel):
     the API returns.
 
     The four clinical fields default to empty. A general translation API has
-    nothing to put in them; TorongoNet will (D-011).
+    nothing to put in them; the fine-tuned medical model will (D-011).
     """
 
     translated_text: str
