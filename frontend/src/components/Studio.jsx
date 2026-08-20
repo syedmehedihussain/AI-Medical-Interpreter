@@ -86,7 +86,7 @@ function Sidebar({ onBack }) {
                 <Shield className="h-4 w-4" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-slate-800">Gemini 3.7 Flash</p>
+                <p className="text-sm font-semibold text-slate-800">Gemini 3.5 Flash-Lite</p>
                 <p className="font-mono text-xs text-slate-400">Provider · Google</p>
               </div>
             </div>
