@@ -261,6 +261,56 @@ class SummaryData(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Medication extraction (added feature; additive to the frozen shapes above)
+# ---------------------------------------------------------------------------
+
+
+class MedicationRequest(BaseModel):
+    """Body of POST /api/medications.
+
+    The frontend sends the English text of one translated turn; the service asks
+    Gemini for any medications named in it. Blank text is rejected before any
+    model call.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def text_must_be_present(cls, value: str) -> str:
+        from app.errors import EmptyInputError
+
+        stripped = value.strip()
+        if not stripped:
+            raise EmptyInputError()
+        return stripped
+
+
+class Medication(BaseModel):
+    """One medication mentioned in the conversation.
+
+    `name` is a canonical English drug name (a Bangla mention or a misspelling is
+    normalised by the model). `dosage` and `frequency` carry whatever was said in
+    the same breath, or empty when not stated. `confident` is False when the
+    model is unsure it heard the name correctly, which is what drives the
+    doctor's confirm/edit control in the UI.
+    """
+
+    name: str
+    dosage: str = ""
+    frequency: str = ""
+    confident: bool = True
+
+
+class MedicationsData(BaseModel):
+    """The "data" object of POST /api/medications."""
+
+    medications: list[Medication] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Internal provider result
 # ---------------------------------------------------------------------------
 

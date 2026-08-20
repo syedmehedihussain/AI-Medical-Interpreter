@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getHealth, summarize } from './api/client'
+import { extractMedications, getHealth, summarize } from './api/client'
 import Home from './components/Home'
 import Studio from './components/Studio'
 import { useSpeak } from './hooks/useSpeak'
@@ -62,12 +62,16 @@ export default function App() {
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState(null)
+  // Medications named across the session, extracted per turn. Confident ones
+  // land 'confirmed'; unsure ones are 'pending' until the doctor confirms/edits.
+  const [medications, setMedications] = useState([])
 
   const { translateChunks, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
 
   const lastRequestRef = useRef(null)
   const entryCounterRef = useRef(0)
+  const medCounterRef = useRef(0)
 
   // prd.md F-7: checked once on load, then driven by request outcomes.
   useEffect(() => {
@@ -95,6 +99,71 @@ export default function App() {
       // As above.
     }
   }, [autoplay])
+
+  /**
+   * Extract medications from one turn's English text and merge new ones in.
+   *
+   * Runs after each translation, fire-and-forget: it must never disrupt the
+   * conversation, so any failure (including Gemini's occasional 503) is
+   * swallowed with a console warning and the list is simply left unchanged for
+   * that turn. New medications are deduped by lowercased name against whatever
+   * is already listed; a confident name lands 'confirmed', an unsure one
+   * 'pending' so the doctor can confirm or edit it.
+   */
+  const detectMedications = useCallback(async (englishText) => {
+    if (!englishText?.trim()) return
+    let found
+    try {
+      const data = await extractMedications({ text: englishText })
+      found = data?.medications ?? []
+    } catch (err) {
+      console.warn('[medications] extraction failed:', err?.code || err)
+      return
+    }
+    if (found.length === 0) return
+
+    setMedications((previous) => {
+      const seen = new Set(previous.map((m) => m.name.trim().toLowerCase()))
+      const additions = []
+      for (const med of found) {
+        const name = (med.name ?? '').trim()
+        const key = name.toLowerCase()
+        if (!name || seen.has(key)) continue
+        seen.add(key)
+        medCounterRef.current += 1
+        additions.push({
+          id: `med-${medCounterRef.current}`,
+          name,
+          dosage: (med.dosage ?? '').trim(),
+          frequency: (med.frequency ?? '').trim(),
+          status: med.confident ? 'confirmed' : 'pending',
+        })
+      }
+      return additions.length ? [...previous, ...additions] : previous
+    })
+  }, [])
+
+  const confirmMedication = useCallback((id) => {
+    setMedications((previous) =>
+      previous.map((m) => (m.id === id ? { ...m, status: 'confirmed' } : m)),
+    )
+  }, [])
+
+  const editMedication = useCallback((id, nextName) => {
+    const name = nextName.trim()
+    if (!name) return
+    // The doctor's typed string becomes the authoritative label, so the
+    // model's separate dosage/frequency guesses are cleared.
+    setMedications((previous) =>
+      previous.map((m) =>
+        m.id === id ? { ...m, name, dosage: '', frequency: '', status: 'confirmed' } : m,
+      ),
+    )
+  }, [])
+
+  const removeMedication = useCallback((id) => {
+    setMedications((previous) => previous.filter((m) => m.id !== id))
+  }, [])
 
   /**
    * The single translation entry point, shared by voice and typing.
@@ -140,10 +209,16 @@ export default function App() {
       // The turn is now committed to the transcript; drop the in-flight copy.
       setPendingSource(null)
 
+      // Pull any medications out of this turn's English side (the doctor's own
+      // English, or the English translation of the patient's Bangla). Not
+      // awaited: it must not delay playback or the next turn.
+      const englishText = data.source_lang === 'en' ? data.source_text : data.translated_text
+      detectMedications(englishText)
+
       if (autoplay) speak.speak(data.translated_text)
       return data
     },
-    [translateChunks, sourceLang, targetLang, autoplay, speak],
+    [translateChunks, sourceLang, targetLang, autoplay, speak, detectMedications],
   )
 
   /**
@@ -275,6 +350,10 @@ export default function App() {
       summaryLoading={summaryLoading}
       summaryError={summaryError}
       onGenerateSummary={generateSummary}
+      medications={medications}
+      onConfirmMedication={confirmMedication}
+      onEditMedication={editMedication}
+      onRemoveMedication={removeMedication}
     />
   )
 }

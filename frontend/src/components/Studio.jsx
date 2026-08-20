@@ -206,6 +206,127 @@ function DomainPanel({ detected, confidence }) {
   )
 }
 
+function formatMedication(med) {
+  let label = med.name
+  if (med.dosage) label += ` ${med.dosage}`
+  if (med.frequency) label += ` · ${med.frequency}`
+  return label
+}
+
+function PillIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3" y="8" width="18" height="8" rx="4" />
+      <path d="M12 8v8" />
+    </svg>
+  )
+}
+
+function MedicationRow({ med, onConfirm, onEdit, onRemove }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const pending = med.status === 'pending'
+
+  const startEdit = () => {
+    setDraft(formatMedication(med))
+    setEditing(true)
+  }
+  const save = () => {
+    const value = draft.trim()
+    if (value) onEdit(med.id, value)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2">
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save()
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          aria-label={`Edit ${med.name}`}
+          className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
+        />
+        <button type="button" onClick={save} className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-brand-700">
+          Save
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="text-xs font-medium text-slate-400 transition hover:text-slate-600">
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group flex items-center gap-3 px-3 py-2.5">
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${pending ? 'bg-clay-100 text-clay-600' : 'bg-brand-50 text-brand-600'}`}>
+        <PillIcon />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-slate-800">
+          {med.name}
+          {pending && <span className="ml-1 font-normal text-clay-500">(?)</span>}
+        </p>
+        {(med.dosage || med.frequency) && (
+          <p className="truncate font-mono text-[11px] text-slate-400">
+            {[med.dosage, med.frequency].filter(Boolean).join(' · ')}
+          </p>
+        )}
+      </div>
+      {pending ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => onConfirm(med.id)} className="rounded-md bg-clay-500 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-clay-600">
+            Confirm
+          </button>
+          <button type="button" onClick={startEdit} className="text-xs font-medium text-slate-500 transition hover:text-slate-800">
+            Edit
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={startEdit} className="shrink-0 text-xs font-medium text-slate-400 opacity-0 transition hover:text-slate-700 group-hover:opacity-100">
+          Edit
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onRemove(med.id)}
+        aria-label={`Remove ${med.name}`}
+        className="shrink-0 text-slate-300 transition hover:text-clay-500"
+      >
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function MedicationsPanel({ medications, onConfirm, onEdit, onRemove }) {
+  return (
+    <section>
+      <h2 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">Medications</h2>
+      <div className="rounded-2xl border border-slate-200 bg-white">
+        {medications.length === 0 ? (
+          <p className="px-4 py-5 text-[13px] leading-relaxed text-slate-400">
+            Medications mentioned in the conversation appear here. Unclear names wait for your confirmation.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {medications.map((med) => (
+              <MedicationRow key={med.id} med={med} onConfirm={onConfirm} onEdit={onEdit} onRemove={onRemove} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function Waveform() {
   return (
     <span className="flex items-center gap-0.5" aria-hidden="true">
@@ -407,6 +528,10 @@ export default function Studio({
   summaryLoading,
   summaryError,
   onGenerateSummary,
+  medications,
+  onConfirmMedication,
+  onEditMedication,
+  onRemoveMedication,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
@@ -676,7 +801,15 @@ export default function Studio({
             </div>
           </main>
 
-          <DomainPanel detected={domainHint?.id ?? null} confidence={domainHint?.confidence ?? 0} />
+          <div className="flex flex-col gap-6">
+            <DomainPanel detected={domainHint?.id ?? null} confidence={domainHint?.confidence ?? 0} />
+            <MedicationsPanel
+              medications={medications}
+              onConfirm={onConfirmMedication}
+              onEdit={onEditMedication}
+              onRemove={onRemoveMedication}
+            />
+          </div>
         </div>
       </div>
     </div>

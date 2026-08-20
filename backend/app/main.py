@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.deps import make_request_id
 from app.errors import AppError
 from app.models import ErrorCode, ErrorDetail, ErrorEnvelope, ResponseMeta
-from app.routers import health, languages, speech, summary, translate
+from app.routers import health, languages, medications, speech, summary, translate
 
 logging.basicConfig(
     level=logging.INFO,
@@ -139,6 +139,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(languages.router, prefix="/api")
 app.include_router(translate.router, prefix="/api")
 app.include_router(summary.router, prefix="/api")
+app.include_router(medications.router, prefix="/api")
 app.include_router(speech.router, prefix="/api")
 
 

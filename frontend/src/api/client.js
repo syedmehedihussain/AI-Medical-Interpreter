@@ -129,6 +129,20 @@ export function summarize({ turns, signal }) {
   })
 }
 
+/**
+ * Extract medications named in one turn of text.
+ *
+ * Called per turn as the conversation runs. Returns { medications: [...] },
+ * each { name, dosage, frequency, confident }.
+ */
+export function extractMedications({ text, signal }) {
+  return request('/api/medications', {
+    method: 'POST',
+    body: { text },
+    signal,
+  })
+}
+
 export function translate({ text, sourceLang, targetLang, context = 'general', signal }) {
   return request('/api/translate/text', {
     method: 'POST',
