@@ -77,12 +77,12 @@ def build_prompt(text: str, source_name: str, target_name: str) -> str:
 
 
 def parse_response(payload: dict) -> str:
-    """Pull the translated text out of a generateContent response.
+    """Pull the generated text out of a generateContent response.
 
     Text lives at candidates[0].content.parts[0].text. A response can arrive
     with no candidates when the model blocks the prompt for safety; that is
     surfaced as a provider error rather than an empty string, so the caller does
-    not display a blank translation as if it succeeded.
+    not display a blank result as if it succeeded.
     """
     candidates = payload.get("candidates")
     if not candidates:
@@ -93,6 +93,85 @@ def parse_response(payload: dict) -> str:
     return text.strip()
 
 
+async def generate_text(prompt: str) -> str:
+    """Send one prompt to Gemini and return the model's text.
+
+    The shared generative call for this app: the translation provider below uses
+    it, and so does the conversation summarizer (services/summary.py). Keeping
+    the key check, retry loop, and response parsing here means both callers get
+    the same error vocabulary and the same transient-failure handling, and there
+    is one place to change if the Gemini request shape ever moves.
+
+    Raises a provider AppError (ProviderUnavailableError / ProviderTimeoutError /
+    ProviderRateLimitedError) on any failure; never returns an empty string.
+    """
+    settings = get_settings()
+
+    if not settings.gemini_ready:
+        # Logged in detail, reported generically -- telling an anonymous
+        # caller the server has no key is a leak (errors.py E-16).
+        logger.error("GEMINI_API_KEY is not configured")
+        raise ProviderUnavailableError(log_detail="missing GEMINI_API_KEY")
+
+    url = ENDPOINT.format(model=settings.gemini_model)
+
+    # Retry loop for transient failures. Every provider error here is
+    # retryable=True, so the last attempt's exception is the one surfaced.
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return await _request_once(url, prompt, settings)
+        except AppError as exc:
+            if attempt < MAX_ATTEMPTS:
+                logger.warning(
+                    "gemini attempt %d/%d failed (%s); retrying",
+                    attempt, MAX_ATTEMPTS, exc.code.value,
+                )
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
+                continue
+            raise
+    # Unreachable: the loop either returns or raises on the final attempt. Here
+    # only to satisfy static analysis that the function always resolves.
+    raise ProviderUnavailableError(log_detail="gemini retry loop exhausted")
+
+
+async def _request_once(url: str, prompt: str, settings) -> str:
+    """One request/parse cycle. Raises a provider AppError on any failure."""
+    try:
+        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+            response = await client.post(
+                url,
+                headers={"x-goog-api-key": settings.gemini_api_key},
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+            )
+    except httpx.TimeoutException as exc:
+        raise ProviderTimeoutError(log_detail=f"gemini timeout: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise ProviderUnavailableError(log_detail=f"gemini transport error: {exc}") from exc
+
+    if response.status_code == 429:
+        raise ProviderRateLimitedError(log_detail=f"gemini 429: {response.text[:300]}")
+    if response.status_code in (401, 403):
+        raise ProviderUnavailableError(
+            log_detail=f"gemini auth failure {response.status_code}: {response.text[:300]}"
+        )
+    if response.status_code >= 400:
+        raise ProviderUnavailableError(
+            log_detail=f"gemini {response.status_code}: {response.text[:300]}"
+        )
+
+    try:
+        text = parse_response(response.json())
+    except (KeyError, IndexError, ValueError) as exc:
+        raise ProviderUnavailableError(
+            log_detail=f"unexpected gemini response: {response.text[:300]}"
+        ) from exc
+
+    if not text:
+        raise ProviderUnavailableError(log_detail="gemini returned empty text")
+
+    return text
+
+
 class GeminiProvider:
     """TranslationProvider backed by the Gemini generative API."""
 
@@ -101,14 +180,6 @@ class GeminiProvider:
     async def translate(
         self, text: str, source_lang: str, target_lang: str, context: str | None = None
     ) -> TranslationResult:
-        settings = get_settings()
-
-        if not settings.gemini_ready:
-            # Logged in detail, reported generically -- telling an anonymous
-            # caller the server has no key is a leak (errors.py E-16).
-            logger.error("GEMINI_API_KEY is not configured")
-            raise ProviderUnavailableError(log_detail="missing GEMINI_API_KEY")
-
         source_name = LANGUAGE_NAMES.get(source_lang)
         target_name = LANGUAGE_NAMES.get(target_lang)
         if not source_name or not target_name:
@@ -116,57 +187,6 @@ class GeminiProvider:
                 log_detail=f"no Gemini mapping for {source_lang!r} or {target_lang!r}"
             )
 
-        url = ENDPOINT.format(model=settings.gemini_model)
         prompt = build_prompt(text, source_name, target_name)
-
-        # Retry loop for transient failures. Every provider error here is
-        # retryable=True, so the last attempt's exception is the one surfaced.
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            try:
-                return await self._attempt(url, prompt, settings)
-            except AppError as exc:
-                if attempt < MAX_ATTEMPTS:
-                    logger.warning(
-                        "gemini attempt %d/%d failed (%s); retrying",
-                        attempt, MAX_ATTEMPTS, exc.code.value,
-                    )
-                    await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
-                    continue
-                raise
-
-    async def _attempt(self, url: str, prompt: str, settings) -> TranslationResult:
-        """One request/parse cycle. Raises a provider AppError on any failure."""
-        try:
-            async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-                response = await client.post(
-                    url,
-                    headers={"x-goog-api-key": settings.gemini_api_key},
-                    json={"contents": [{"parts": [{"text": prompt}]}]},
-                )
-        except httpx.TimeoutException as exc:
-            raise ProviderTimeoutError(log_detail=f"gemini timeout: {exc}") from exc
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailableError(log_detail=f"gemini transport error: {exc}") from exc
-
-        if response.status_code == 429:
-            raise ProviderRateLimitedError(log_detail=f"gemini 429: {response.text[:300]}")
-        if response.status_code in (401, 403):
-            raise ProviderUnavailableError(
-                log_detail=f"gemini auth failure {response.status_code}: {response.text[:300]}"
-            )
-        if response.status_code >= 400:
-            raise ProviderUnavailableError(
-                log_detail=f"gemini {response.status_code}: {response.text[:300]}"
-            )
-
-        try:
-            translated = parse_response(response.json())
-        except (KeyError, IndexError, ValueError) as exc:
-            raise ProviderUnavailableError(
-                log_detail=f"unexpected gemini response: {response.text[:300]}"
-            ) from exc
-
-        if not translated:
-            raise ProviderUnavailableError(log_detail="gemini returned empty text")
-
+        translated = await generate_text(prompt)
         return TranslationResult(translated_text=translated)

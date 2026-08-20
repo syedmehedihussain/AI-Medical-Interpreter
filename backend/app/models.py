@@ -199,6 +199,68 @@ class TranslateRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Conversation summary (added feature; additive to the frozen shapes above)
+# ---------------------------------------------------------------------------
+
+
+class SummaryTurn(BaseModel):
+    """One line of the transcript sent to the summarizer.
+
+    The frontend sends the English side of every exchange -- the doctor's own
+    English utterance, or the English translation of the patient's Bangla -- so
+    the resulting note reads in one language for the clinician. `speaker` is a
+    plain string ("doctor" / "patient") rather than an enum: it is only used to
+    label a line in the prompt, so an unexpected value degrades to that label
+    rather than rejecting the whole request.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    speaker: str
+    text: str
+
+
+class SummaryRequest(BaseModel):
+    """Body of POST /api/summary.
+
+    Not part of the frozen translation contract (D-011); this is the summary
+    feature's own shape. An empty transcript, or one whose lines are all blank,
+    is rejected as EMPTY_INPUT before any model call -- there is nothing to
+    summarise and a live API request would be wasted.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    turns: list[SummaryTurn]
+
+    @field_validator("turns")
+    @classmethod
+    def turns_must_have_content(cls, value: list[SummaryTurn]) -> list[SummaryTurn]:
+        from app.errors import EmptyInputError
+
+        cleaned = [
+            SummaryTurn(speaker=turn.speaker.strip() or "speaker", text=turn.text.strip())
+            for turn in value
+            if turn.text.strip()
+        ]
+        if not cleaned:
+            raise EmptyInputError()
+        return cleaned
+
+
+class SummaryData(BaseModel):
+    """The "data" object of POST /api/summary.
+
+    A single block of plain text with labelled sections (Chief complaint, Key
+    symptoms, History / meds mentioned, Suggested follow-up). Plain text rather
+    than structured fields keeps the shape stable if the section list changes,
+    and the frontend renders it verbatim.
+    """
+
+    summary: str
+
+
+# ---------------------------------------------------------------------------
 # Internal provider result
 # ---------------------------------------------------------------------------
 

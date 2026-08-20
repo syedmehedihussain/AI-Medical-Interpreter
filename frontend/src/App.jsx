@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getHealth } from './api/client'
+import { getHealth, summarize } from './api/client'
 import Home from './components/Home'
 import Studio from './components/Studio'
 import { useSpeak } from './hooks/useSpeak'
@@ -61,6 +61,10 @@ export default function App() {
   const [pendingSource, setPendingSource] = useState(null)
   // Seconds the mic has been open, for the console's recording timer.
   const [listenSeconds, setListenSeconds] = useState(0)
+  // The AI conversation summary: generated on demand, cached until regenerated.
+  const [summary, setSummary] = useState(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState(null)
 
   const { translate, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
@@ -139,6 +143,35 @@ export default function App() {
     },
     [translate, sourceLang, targetLang, autoplay, speak],
   )
+
+  /**
+   * Generate the AI summary from the current transcript.
+   *
+   * Each entry becomes one English turn: the doctor's own English utterance, or
+   * the English translation of the patient's Bangla, so the note reads in one
+   * language. The result is cached in state; callers (the summary tab, the
+   * Regenerate button) invoke this and read `summary`/`summaryLoading`.
+   */
+  const generateSummary = useCallback(async () => {
+    if (summaryLoading || entries.length === 0) return
+    const turns = entries.map((entry) => {
+      const doctorSide = entry.sourceLang === 'en'
+      return {
+        speaker: doctorSide ? 'doctor' : 'patient',
+        text: doctorSide ? entry.sourceText : entry.translatedText,
+      }
+    })
+    setSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const data = await summarize({ turns })
+      setSummary(data.summary)
+    } catch (err) {
+      setSummaryError(err)
+    } finally {
+      setSummaryLoading(false)
+    }
+  }, [entries, summaryLoading])
 
   /**
    * Finalised speech segments are buffered, not translated one by one.
@@ -264,6 +297,10 @@ export default function App() {
       onSpeak={speak.speak}
       hasVoice={speak.hasVoice}
       isSpeaking={speak.isSpeaking}
+      summary={summary}
+      summaryLoading={summaryLoading}
+      summaryError={summaryError}
+      onGenerateSummary={generateSummary}
     />
   )
 }

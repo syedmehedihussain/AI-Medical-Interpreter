@@ -294,6 +294,82 @@ function HistoryList({ entries }) {
   )
 }
 
+function SummaryPanel({ entries, summary, loading, error, onGenerate }) {
+  if (entries.length === 0) {
+    return (
+      <p className="px-1 py-6 text-sm leading-relaxed text-slate-400">
+        A clinical summary appears here once the conversation begins. Speak or type above, then open this tab.
+      </p>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-1 py-6 text-sm text-brand-700">
+        <span className="font-medium">Generating summary</span>
+        <span className="flex gap-1">
+          {[0, 150, 300].map((d) => (
+            <span key={d} className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" style={{ animationDelay: `${d}ms` }} />
+          ))}
+        </span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-3 px-1 py-6 text-sm text-clay-700">
+        <span>{messageForError(error)}</span>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="rounded-full border border-clay-300 bg-white px-3 py-1 text-xs font-semibold text-clay-700 hover:bg-clay-50"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  if (!summary) {
+    return (
+      <div className="px-1 py-6">
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+        >
+          Generate summary
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
+          AI clinical note
+        </span>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="flex items-center gap-1.5 text-xs font-semibold text-brand-700 transition hover:text-brand-800"
+        >
+          <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M4 10a6 6 0 0 1 10-4.5M16 10a6 6 0 0 1-10 4.5M14 3v2.5h-2.5M6 17v-2.5h2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Regenerate
+        </button>
+      </div>
+      <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">{summary}</p>
+      <p className="mt-4 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-400">
+        AI-generated from this session&rsquo;s transcript. Review before relying on it clinically.
+      </p>
+    </div>
+  )
+}
+
 function useSessionClock() {
   const start = useRef(Date.now())
   const [elapsed, setElapsed] = useState(0)
@@ -327,10 +403,23 @@ export default function Studio({
   onSpeak,
   hasVoice,
   isSpeaking,
+  summary,
+  summaryLoading,
+  summaryError,
+  onGenerateSummary,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
   const clock = useSessionClock()
+
+  // Opening the summary tab generates the note once, then leaves it cached.
+  // Guarded so it does not re-fire while loading, after success, or after an
+  // error (the user retries with the Regenerate button instead of a loop).
+  useEffect(() => {
+    if (tab === 'summary' && entries.length && !summary && !summaryLoading && !summaryError) {
+      onGenerateSummary()
+    }
+  }, [tab, entries.length, summary, summaryLoading, summaryError, onGenerateSummary])
 
   const latest = entries.length ? entries[entries.length - 1] : null
   const shownMessage = isListening ? liveText : pending?.text ?? (draft || latest?.sourceText || '')
@@ -566,11 +655,13 @@ export default function Studio({
               {tab === 'history' ? (
                 <HistoryList entries={entries} />
               ) : (
-                <p className="text-sm leading-relaxed text-slate-500">
-                  {entries.length
-                    ? `${entries.length} exchange${entries.length > 1 ? 's' : ''} this session, ${getDisplayLabel(sourceLang)} ↔ ${getDisplayLabel(targetLang)}${domainHint ? `, likely ${DOMAINS.find((d) => d.id === domainHint.id)?.name}` : ''}. Transcripts stay on this device.`
-                    : 'A running summary appears once the conversation begins.'}
-                </p>
+                <SummaryPanel
+                  entries={entries}
+                  summary={summary}
+                  loading={summaryLoading}
+                  error={summaryError}
+                  onGenerate={onGenerateSummary}
+                />
               )}
             </div>
           </main>

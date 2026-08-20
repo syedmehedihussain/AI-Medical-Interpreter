@@ -115,6 +115,20 @@ export function speechUrl({ text, lang }) {
   return `${BASE_URL}/api/speech?${params.toString()}`
 }
 
+/**
+ * Ask the backend for an AI-written clinical summary of the session.
+ *
+ * `turns` is the English side of every exchange, each { speaker, text }, so the
+ * doctor gets an all-English note. Returns { summary } on success.
+ */
+export function summarize({ turns, signal }) {
+  return request('/api/summary', {
+    method: 'POST',
+    body: { turns },
+    signal,
+  })
+}
+
 export function translate({ text, sourceLang, targetLang, context = 'general', signal }) {
   return request('/api/translate/text', {
     method: 'POST',
