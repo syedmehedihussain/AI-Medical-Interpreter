@@ -50,18 +50,14 @@ function loadAutoplay() {
 }
 
 export default function App() {
-  // Two views, no router: the marketing home and the interpreter tool. A plain
-  // state toggle is enough for one transition and avoids pulling in a routing
-  // dependency for two screens.
+  // Two views, no router: the marketing home and the interpreter tool.
   const [view, setView] = useState('home')
   const [{ sourceLang, targetLang }, setLanguagePair] = useState(loadLanguagePair)
   const [backendReachable, setBackendReachable] = useState(null)
   const [autoplay] = useState(loadAutoplay)
   const [entries, setEntries] = useState([])
   const [lastFinalText, setLastFinalText] = useState('')
-  // The utterance currently being sent/translated, shown as an in-flight chat
-  // turn (source bubble + translating dots). Cleared on success; kept on error
-  // so the failed turn stays visible with a retry.
+  // The utterance being translated. Cleared on success; kept on error for retry.
   const [pendingSource, setPendingSource] = useState(null)
   // Seconds the mic has been open, for the console's recording timer.
   const [listenSeconds, setListenSeconds] = useState(0)
@@ -110,8 +106,7 @@ export default function App() {
       const text = rawText.slice(0, MAX_SEGMENT_LENGTH)
 
       lastRequestRef.current = { text, inputMode }
-      // Show the sent turn immediately, before the network answers, so the
-      // chat feels responsive (E-17 race handling still lives in useTranslate).
+      // Show the sent turn immediately, before the network answers.
       setPendingSource({ text, inputMode, sourceLang, targetLang })
       const data = await translate({ text, sourceLang, targetLang })
       if (!data) return null
@@ -171,7 +166,7 @@ export default function App() {
     }
     const buffered = segmentBufferRef.current.join(' ').trim()
     segmentBufferRef.current = []
-    // Clear the live dictation bubble; the sent turn now lives in pendingSource.
+    // Clear the live dictation; the sent turn now lives in pendingSource.
     setLastFinalText('')
     if (buffered) runTranslation(buffered, { inputMode: 'voice' })
   }, [runTranslation])
@@ -221,10 +216,6 @@ export default function App() {
     return () => clearInterval(id)
   }, [speech.isListening])
 
-  // The composer always shows a text field, so there is no separate "open the
-  // typing panel" state to manage when voice is unavailable (prd.md E-1, E-2):
-  // typing is always available right where the mic would be.
-
   // A network failure means Offline; a 400 or 500 does not, because the server
   // plainly answered.
   useEffect(() => {
@@ -243,16 +234,12 @@ export default function App() {
     setLastFinalText('')
   }, [])
 
-  // Nothing can complete without the backend, so surface an offline state in
-  // the console's live-session indicator.
   const offline = backendReachable === false
 
   if (view === 'home') {
     return <Home onStart={() => setView('tool')} />
   }
 
-  // The tool as a three-panel clinical console (design reference: the MITA
-  // mockup). Studio is presentation; all translation wiring stays here.
   const liveText = [lastFinalText, speech.interimText].filter(Boolean).join(' ')
 
   return (

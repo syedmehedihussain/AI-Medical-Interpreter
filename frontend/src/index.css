@@ -1,5 +1,4 @@
-/* Bengali webfont loaded explicitly, not left to the system (prd.md E-23).
-   Without this, Bangla renders as boxes on a machine with no Bengali font. */
+/* Bengali webfont loaded explicitly so Bangla never renders as boxes (E-23). */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
 
 @tailwind base;
@@ -12,13 +11,12 @@
   }
 
   body {
-    @apply bg-canvas text-slate-900 antialiased;
+    @apply bg-console text-slate-900 antialiased;
   }
 
-  /* prd.md section 6: every control reachable by Tab with a visible focus
-     ring. Set globally so no component can forget it. */
+  /* Every control reachable by Tab gets a visible focus ring (prd.md section 6). */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-canvas;
+    @apply outline-none ring-2 ring-pine-600 ring-offset-2 ring-offset-console;
   }
 }
 
@@ -28,22 +26,19 @@
     font-family: 'Noto Sans Bengali', 'Inter', system-ui, sans-serif;
   }
 
-  /* Editorial display: tighter tracking and leading for the large hero type,
-     so a multi-line headline reads as one confident block, not stacked lines. */
+  /* Tighter tracking/leading for the large hero headline. */
   .text-display {
     letter-spacing: -0.03em;
     line-height: 0.98;
   }
 
-  /* The organic green shape behind the hero (design reference: Aida's blob).
-     An asymmetric border-radius reads as hand-drawn rather than a plain circle. */
+  /* Asymmetric radius so the hero shape reads as organic, not a plain circle. */
   .blob {
     border-radius: 42% 58% 57% 43% / 45% 44% 56% 55%;
   }
 }
 
-/* prd.md section 6: respect prefers-reduced-motion. Applied globally so a
-   component cannot forget to opt out. */
+/* Respect prefers-reduced-motion globally (prd.md section 6). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,12 +1,5 @@
-/**
- * Client-side medical-domain hinting.
- *
- * NOT a diagnosis and NOT a backend model: a transparent keyword match over the
- * latest utterance that surfaces a likely specialty for the clinician to
- * confirm before anything routes (see the DomainPanel "system note"). Kept here
- * so the vocabulary is easy to extend, and so the UI never implies the app is
- * inferring clinical meaning it cannot actually verify.
- */
+// Client-side domain hinting: a transparent keyword match over the latest
+// utterance, surfaced for the clinician to confirm. Not a diagnosis or a model.
 
 export const DOMAINS = [
   { id: 'cardiology', name: 'Cardiology', keywords: ['heart', 'palpitation', 'chest pain', 'blood pressure', 'hypertension', 'pulse'] },
@@ -17,13 +10,7 @@ export const DOMAINS = [
   { id: 'ophthalmology', name: 'Ophthalmology', keywords: ['eye', 'vision', 'blurry', 'blurred', 'sight', 'tears'] },
 ]
 
-/**
- * Score the text against each domain and return the strongest hint.
- *
- * Returns `{ id, confidence }` for the best match, or null when nothing matches
- * (the panel then shows every domain as "not detected"). Confidence is a rough,
- * honest signal from hit count, not a calibrated probability.
- */
+// Returns { id, confidence } for the strongest match, or null if none match.
 export function detectDomain(text) {
   const haystack = (text ?? '').toLowerCase()
   if (!haystack.trim()) return null
@@ -37,7 +24,6 @@ export function detectDomain(text) {
   }
   if (!best) return null
 
-  // Two or more matching terms reads as a confident hint; one as a softer one.
   const confidence = Math.min(96, 78 + best.hits * 9)
   return { id: best.id, confidence }
 }

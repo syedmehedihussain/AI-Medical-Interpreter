@@ -3,19 +3,8 @@ import { getDisplayLabel, getOther, isBengali } from '../lib/languages'
 import { messageForError } from '../lib/messages'
 import { DOMAINS, detectDomain } from '../lib/domains'
 
-/**
- * The interpreter console (design reference: the MITA mockup).
- *
- * A three-panel clinical surface: session history + model card on the left, the
- * live translation in the centre, and a domain-detection rail on the right. All
- * of the translation wiring lives in App; this component is presentation plus a
- * couple of local, honestly-scoped touches (a session timer, a client-side
- * domain hint). "Mita" is the interpreter persona shown to the user.
- */
-
-// ---------------------------------------------------------------------------
-// Small shared pieces
-// ---------------------------------------------------------------------------
+// The interpreter console: history + model on the left, live translation in the
+// centre, domain detection on the right. Presentation only; App owns the wiring.
 
 function Shield({ className = 'h-5 w-5' }) {
   return (
@@ -27,8 +16,6 @@ function Shield({ className = 'h-5 w-5' }) {
 }
 
 function EcgLine() {
-  // A single repeating heartbeat path that draws itself left to right, with a
-  // coral pulse sitting on the spike.
   return (
     <div className="relative h-10 w-full overflow-hidden" aria-hidden="true">
       <svg viewBox="0 0 1200 60" preserveAspectRatio="none" className="h-full w-full">
@@ -51,10 +38,6 @@ const DOMAIN_ICONS = {
   orthopedics: 'M8 8a2 2 0 1 1-2-2 2 2 0 0 1-1-1m3 3 8 8m0 0a2 2 0 1 0 2 2 2 2 0 0 0 1 1',
   ophthalmology: 'M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
 }
-
-// ---------------------------------------------------------------------------
-// Left sidebar
-// ---------------------------------------------------------------------------
 
 const SAMPLE_HISTORY = [
   { title: 'Fever & chest pain', when: '09:14', pair: 'Sylheti → EN' },
@@ -157,10 +140,6 @@ function Sidebar({ onBack }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Right domain rail
-// ---------------------------------------------------------------------------
-
 function DomainPanel({ detected, confidence }) {
   const [confirmed, setConfirmed] = useState(null)
 
@@ -233,10 +212,6 @@ function DomainPanel({ detected, confidence }) {
     </aside>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Centre: waveform, message + translation, history
-// ---------------------------------------------------------------------------
 
 function Waveform() {
   return (
@@ -338,10 +313,6 @@ function useSessionClock() {
   return `${mm}:${ss}`
 }
 
-// ---------------------------------------------------------------------------
-// Studio
-// ---------------------------------------------------------------------------
-
 export default function Studio({
   sourceLang,
   targetLang,
@@ -369,8 +340,6 @@ export default function Studio({
   const clock = useSessionClock()
 
   const latest = entries.length ? entries[entries.length - 1] : null
-  // What the message card shows: the words being dictated, else what was just
-  // sent (pending), else the last committed source, else the draft being typed.
   const shownMessage = isListening ? liveText : pending?.text ?? (draft || latest?.sourceText || '')
   const translationText = pending && isTranslating ? null : latest?.translatedText
   const verified = latest && !latest.needsReview
@@ -388,7 +357,6 @@ export default function Studio({
   return (
     <div className="min-h-[100dvh] bg-console">
       <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
-        {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-4 pb-4">
           <button type="button" onClick={onBack} className="flex items-center gap-3 text-left" title="Back to home">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pine-600 text-white">
@@ -416,11 +384,9 @@ export default function Studio({
 
         <div className="border-t border-slate-200" />
 
-        {/* Three panels */}
         <div className="grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[264px_minmax(0,1fr)_320px]">
           <Sidebar onBack={onBack} />
 
-          {/* Centre console */}
           <main className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <EcgLine />
 
@@ -445,7 +411,6 @@ export default function Studio({
             </p>
             <LanguageToggle sourceLang={sourceLang} targetLang={targetLang} onChange={onLanguageChange} />
 
-            {/* YOUR MESSAGE */}
             <div className="mt-5 rounded-2xl border border-slate-200 p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">Your message</span>
@@ -520,7 +485,6 @@ export default function Studio({
               </div>
             </div>
 
-            {/* TRANSLATION */}
             <div className="mt-4 rounded-2xl bg-pine-50 p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-pine-700/70">Translation</span>
@@ -587,7 +551,6 @@ export default function Studio({
               )}
             </div>
 
-            {/* Tabs */}
             <div className="mt-6 flex gap-2">
               {[
                 ['summary', 'Conversation summary'],
