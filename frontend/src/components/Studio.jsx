@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getDisplayLabel, getOther, isBengali } from '../lib/languages'
+import { getDisplayLabel, isBengali } from '../lib/languages'
 import { messageForError } from '../lib/messages'
 import { DOMAINS, detectDomain } from '../lib/domains'
 
@@ -402,39 +402,80 @@ function Waveform() {
   )
 }
 
-function LanguageToggle({ sourceLang, targetLang, onChange }) {
+// The two languages a role can be set to, in display order.
+const ROLE_LANGS = [
+  ['en', 'English', ''],
+  ['bn', 'বাংলা', 'font-bn'],
+]
+
+/**
+ * Doctor / Patient speaker switch.
+ *
+ * The active role's language is the source, the other role's is the target, so
+ * tapping a role both marks who is speaking and flips the translation
+ * direction. Each role has its own English/Bangla picker; App keeps the two
+ * languages different.
+ */
+function SpeakerSwitch({
+  doctorLang,
+  patientLang,
+  activeSpeaker,
+  onSpeakerChange,
+  onDoctorLangChange,
+  onPatientLangChange,
+}) {
+  const roles = [
+    { id: 'doctor', name: 'Doctor', lang: doctorLang, onLang: onDoctorLangChange },
+    { id: 'patient', name: 'Patient', lang: patientLang, onLang: onPatientLangChange },
+  ]
+  const srcLang = activeSpeaker === 'doctor' ? doctorLang : patientLang
+  const tgtLang = activeSpeaker === 'doctor' ? patientLang : doctorLang
+
   return (
-    <div className="flex items-center gap-2 rounded-full bg-slate-100 p-1">
-      <button
-        type="button"
-        onClick={() => onChange({ sourceLang: 'en', targetLang: getOther('en') })}
-        aria-pressed={sourceLang === 'en'}
-        className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition ${
-          sourceLang === 'en' ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-        }`}
-      >
-        English
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange({ sourceLang: targetLang, targetLang: sourceLang })}
-        aria-label="Swap direction"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-brand-700"
-      >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path d="M4 7h12m0 0-3-3m3 3-3 3M16 13H4m0 0 3 3m-3-3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange({ sourceLang: 'bn', targetLang: getOther('bn') })}
-        aria-pressed={sourceLang === 'bn'}
-        className={`flex-1 rounded-full py-2.5 font-bn text-sm font-semibold transition ${
-          sourceLang === 'bn' ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-        }`}
-      >
-        বাংলা
-      </button>
+    <div className="rounded-2xl bg-slate-100 p-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
+        {roles.map((role) => {
+          const active = activeSpeaker === role.id
+          return (
+            <div key={role.id} className={`rounded-xl p-3 transition ${active ? 'bg-white shadow-sm ring-1 ring-brand-200' : ''}`}>
+              <button
+                type="button"
+                onClick={() => onSpeakerChange(role.id)}
+                aria-pressed={active}
+                className="flex w-full items-center justify-between gap-2"
+              >
+                <span className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${active ? 'animate-pulse-dot bg-brand-500' : 'bg-slate-300'}`} />
+                  <span className={`text-sm font-semibold ${active ? 'text-slate-900' : 'text-slate-500'}`}>{role.name}</span>
+                </span>
+                {active && (
+                  <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    Speaking
+                  </span>
+                )}
+              </button>
+              <div className="mt-2 flex items-center gap-1">
+                {ROLE_LANGS.map(([code, label, font]) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => role.onLang(code)}
+                    aria-pressed={role.lang === code}
+                    className={`rounded-md px-2 py-1 text-[11px] font-semibold transition ${font} ${
+                      role.lang === code ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-1.5 px-1 text-center text-[11px] text-slate-400">
+        {getDisplayLabel(srcLang)} → {getDisplayLabel(tgtLang)} · tap a role to switch who&rsquo;s speaking
+      </p>
     </div>
   )
 }
@@ -450,7 +491,9 @@ function HistoryList({ entries }) {
   return (
     <div className="space-y-5">
       {entries.map((entry) => {
-        const doctorSide = entry.sourceLang === 'en'
+        // Label by who spoke, not by language: roles can be set to either
+        // language, so the old "English side == doctor" guess no longer holds.
+        const doctorSide = entry.speaker ? entry.speaker === 'doctor' : entry.sourceLang === 'en'
         return (
           <div key={entry.id} className="space-y-1.5">
             <div className={doctorSide ? 'text-left' : 'text-right'}>
@@ -567,7 +610,12 @@ function useSessionClock() {
 export default function Studio({
   sourceLang,
   targetLang,
-  onLanguageChange,
+  doctorLang,
+  patientLang,
+  activeSpeaker,
+  onSpeakerChange,
+  onDoctorLangChange,
+  onPatientLangChange,
   onBack,
   offline,
   isListening,
@@ -681,9 +729,16 @@ export default function Studio({
             </p>
 
             <p className="mb-2 mt-6 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
-              Select your language
+              Who&rsquo;s speaking
             </p>
-            <LanguageToggle sourceLang={sourceLang} targetLang={targetLang} onChange={onLanguageChange} />
+            <SpeakerSwitch
+              doctorLang={doctorLang}
+              patientLang={patientLang}
+              activeSpeaker={activeSpeaker}
+              onSpeakerChange={onSpeakerChange}
+              onDoctorLangChange={onDoctorLangChange}
+              onPatientLangChange={onPatientLangChange}
+            />
 
             <div className="mt-5 rounded-2xl border border-slate-200 p-4">
               <div className="mb-2 flex items-center justify-between">

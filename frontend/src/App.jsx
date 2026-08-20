@@ -10,8 +10,14 @@ import { getDisplayLabel } from './lib/languages'
 import { buildPrescriptionHTML, openPrintWindow, VAULT_URL } from './lib/report'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
-const PAIR_KEY = 'ami.languagePair'
+const ROLES_KEY = 'ami.roles'
 const AUTOPLAY_KEY = 'ami.autoplay'
+
+// Who speaks which language by default: the doctor in English, the patient in
+// Bangla. Either can be changed to the other language; the two must always
+// differ, since a translation needs two languages.
+const DEFAULT_DOCTOR_LANG = DEFAULT_SOURCE // 'en'
+const DEFAULT_PATIENT_LANG = DEFAULT_TARGET // 'bn'
 
 // prd.md E-11: the backend rejects text longer than this. A recorded passage is
 // split into pieces of at most this many characters on sentence boundaries
@@ -19,21 +25,27 @@ const AUTOPLAY_KEY = 'ami.autoplay'
 const MAX_SEGMENT_LENGTH = 500
 
 /**
- * Read the saved pair, defending against anything unusable in localStorage.
+ * Read the saved role setup, defending against anything unusable in storage.
  *
  * Storage is user-writable and outlives code changes, so a value written by an
  * older build, or edited by hand, must not be able to crash the app on load.
+ * The patient language is always re-derived to differ from the doctor's, so a
+ * same-language pair (unreachable through the UI, but trivially hand-written)
+ * cannot take effect.
  */
-function loadLanguagePair() {
-  const fallback = { sourceLang: DEFAULT_SOURCE, targetLang: DEFAULT_TARGET }
+function loadRoles() {
+  const fallback = {
+    doctorLang: DEFAULT_DOCTOR_LANG,
+    patientLang: DEFAULT_PATIENT_LANG,
+    activeSpeaker: 'doctor',
+  }
   try {
-    const raw = localStorage.getItem(PAIR_KEY)
+    const raw = localStorage.getItem(ROLES_KEY)
     if (!raw) return fallback
     const saved = JSON.parse(raw)
-    if (!saved?.sourceLang || !getLanguage(saved.sourceLang)) return fallback
-    // Re-derived rather than trusted: a same-language pair is unreachable
-    // through the UI but trivially writable by hand.
-    return { sourceLang: saved.sourceLang, targetLang: getOther(saved.sourceLang) }
+    const doctorLang = getLanguage(saved?.doctorLang) ? saved.doctorLang : DEFAULT_DOCTOR_LANG
+    const activeSpeaker = saved?.activeSpeaker === 'patient' ? 'patient' : 'doctor'
+    return { doctorLang, patientLang: getOther(doctorLang), activeSpeaker }
   } catch {
     return fallback
   }
@@ -42,17 +54,16 @@ function loadLanguagePair() {
 /**
  * Map transcript entries to English-side turns for the summary/report.
  *
- * Each turn is the doctor's own English utterance, or the English translation
- * of the patient's Bangla, so the note reads in one language.
+ * `speaker` is the role recorded on the entry (who was talking); the text is
+ * always the English side -- the English utterance itself, or the English
+ * translation of the other language -- so the doctor's note reads in one
+ * language regardless of which language each role is set to.
  */
 function entriesToTurns(entries) {
-  return entries.map((entry) => {
-    const doctorSide = entry.sourceLang === 'en'
-    return {
-      speaker: doctorSide ? 'doctor' : 'patient',
-      text: doctorSide ? entry.sourceText : entry.translatedText,
-    }
-  })
+  return entries.map((entry) => ({
+    speaker: entry.speaker === 'patient' ? 'patient' : 'doctor',
+    text: entry.sourceLang === 'en' ? entry.sourceText : entry.translatedText,
+  }))
 }
 
 function loadAutoplay() {
@@ -67,7 +78,12 @@ function loadAutoplay() {
 export default function App() {
   // Two views, no router: the marketing home and the interpreter tool.
   const [view, setView] = useState('home')
-  const [{ sourceLang, targetLang }, setLanguagePair] = useState(loadLanguagePair)
+  // Role-based language setup. Each role has a language; the active speaker's
+  // language is the source, the other role's is the target. So switching who is
+  // speaking flips the translation direction.
+  const [{ doctorLang, patientLang, activeSpeaker }, setRoles] = useState(loadRoles)
+  const sourceLang = activeSpeaker === 'doctor' ? doctorLang : patientLang
+  const targetLang = activeSpeaker === 'doctor' ? patientLang : doctorLang
   const [backendReachable, setBackendReachable] = useState(null)
   const [autoplay] = useState(loadAutoplay)
   const [entries, setEntries] = useState([])
@@ -109,11 +125,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(PAIR_KEY, JSON.stringify({ sourceLang, targetLang }))
+      localStorage.setItem(ROLES_KEY, JSON.stringify({ doctorLang, patientLang, activeSpeaker }))
     } catch {
       // Private browsing can make setItem throw. Not worth crashing over.
     }
-  }, [sourceLang, targetLang])
+  }, [doctorLang, patientLang, activeSpeaker])
 
   useEffect(() => {
     try {
@@ -259,6 +275,9 @@ export default function App() {
       const text = rawText.trim()
       if (!text) return null
 
+      // The role speaking now; recorded on the entry so the transcript labels
+      // Doctor/Patient by who spoke, not by which language it happened to be.
+      const speaker = activeSpeaker
       lastRequestRef.current = { text, inputMode }
       // Show the sent turn immediately, before the network answers.
       setPendingSource({ text, inputMode, sourceLang, targetLang })
@@ -282,6 +301,7 @@ export default function App() {
           translatedText: data.translated_text,
           sourceLang: data.source_lang,
           targetLang: data.target_lang,
+          speaker,
           timestamp: new Date().toISOString(),
           inputMode,
           confidence: data.confidence,
@@ -301,7 +321,7 @@ export default function App() {
       if (autoplay) speak.speak(data.translated_text)
       return data
     },
-    [translateChunks, sourceLang, targetLang, autoplay, speak, detectMedications],
+    [translateChunks, sourceLang, targetLang, activeSpeaker, autoplay, speak, detectMedications],
   )
 
   /**
@@ -426,10 +446,24 @@ export default function App() {
     if (last) runTranslation(last.text, { inputMode: last.inputMode })
   }, [runTranslation])
 
-  const handleLanguageChange = useCallback((pair) => {
-    setLanguagePair(pair)
-    // The old caption belongs to the old language; leaving it on screen while
-    // the label says otherwise is worse than clearing it.
+  // The old caption belongs to the old speaker/language; clearing it avoids
+  // showing dictation under a label that now says something else.
+  const changeSpeaker = useCallback((role) => {
+    setRoles((prev) => ({ ...prev, activeSpeaker: role === 'patient' ? 'patient' : 'doctor' }))
+    setLastFinalText('')
+  }, [])
+
+  const changeDoctorLang = useCallback((lang) => {
+    if (!getLanguage(lang)) return
+    // The two roles must speak different languages, so the patient takes the
+    // other language automatically.
+    setRoles((prev) => ({ ...prev, doctorLang: lang, patientLang: getOther(lang) }))
+    setLastFinalText('')
+  }, [])
+
+  const changePatientLang = useCallback((lang) => {
+    if (!getLanguage(lang)) return
+    setRoles((prev) => ({ ...prev, patientLang: lang, doctorLang: getOther(lang) }))
     setLastFinalText('')
   }, [])
 
@@ -445,7 +479,12 @@ export default function App() {
     <Studio
       sourceLang={sourceLang}
       targetLang={targetLang}
-      onLanguageChange={handleLanguageChange}
+      doctorLang={doctorLang}
+      patientLang={patientLang}
+      activeSpeaker={activeSpeaker}
+      onSpeakerChange={changeSpeaker}
+      onDoctorLangChange={changeDoctorLang}
+      onPatientLangChange={changePatientLang}
       onBack={() => setView('home')}
       offline={offline}
       isListening={speech.isListening}
