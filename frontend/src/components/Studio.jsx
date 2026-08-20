@@ -474,9 +474,9 @@ export default function Studio({
 
             <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.15em]">
               <span className="text-slate-400">Session · {clock}</span>
-              <span className="flex items-center gap-1.5 text-brand-600">
-                <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-brand-500" />
-                Translation live
+              <span className={`flex items-center gap-1.5 ${isListening ? 'text-clay-600' : 'text-brand-600'}`}>
+                <span className={`h-1.5 w-1.5 animate-pulse-dot rounded-full ${isListening ? 'bg-clay-500' : 'bg-brand-500'}`} />
+                {isListening ? 'Recording' : 'Translation live'}
               </span>
             </div>
 
@@ -503,7 +503,7 @@ export default function Studio({
 
               {isListening ? (
                 <p className={`min-h-[3rem] ${isBengali(sourceLang) ? 'font-bn text-bn' : 'text-lg'} text-slate-800`}>
-                  {shownMessage || <span className="text-slate-400">Listening…</span>}
+                  {shownMessage || <span className="text-slate-400">Recording… speak freely, then tap Done.</span>}
                 </p>
               ) : (
                 <textarea
@@ -546,9 +546,19 @@ export default function Studio({
                 {isListening ? (
                   <>
                     <Waveform />
-                    <span className="ml-auto font-mono text-sm text-slate-400">
+                    <span className="font-mono text-sm text-slate-400">
                       {`0:${String(listenSeconds).padStart(2, '0')}`}
                     </span>
+                    <button
+                      type="button"
+                      onClick={onStop}
+                      className="ml-auto flex items-center gap-1.5 rounded-full bg-clay-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+                    >
+                      Done
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
                   </>
                 ) : draft.trim() ? (
                   <button

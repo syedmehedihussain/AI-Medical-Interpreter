@@ -69,10 +69,90 @@ export function useTranslate() {
     }
   }, [])
 
+  /**
+   * Translate a passage that has been split into sentence-sized chunks, as one
+   * logical request.
+   *
+   * The record-until-Done mic (App.jsx) hands over a whole utterance, which
+   * chunkBySentence may break into several <=500-char pieces to fit the backend
+   * limit. Those pieces must be translated together and shown as one exchange.
+   *
+   * The single-`translate` race handling above cannot be looped for this: it
+   * aborts the previous in-flight request, so calling it per chunk would make
+   * each chunk abort the one before it. Instead the whole batch shares ONE
+   * AbortController and ONE sequence number, so a newer Done still supersedes an
+   * older batch, but the chunks within a batch run sequentially without
+   * cancelling each other. The pieces are then merged into a single object
+   * shaped like one /api/translate response, so the caller builds one entry.
+   */
+  const translateChunks = useCallback(
+    async (chunks, { sourceLang, targetLang, context = 'general' }) => {
+      const clean = (chunks ?? []).map((c) => (c ?? '').trim()).filter(Boolean)
+      if (!clean.length) return null
+
+      controllerRef.current?.abort()
+      const controller = new AbortController()
+      controllerRef.current = controller
+
+      const sequence = ++sequenceRef.current
+      const isStale = () => sequence !== sequenceRef.current
+
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const parts = []
+        for (const text of clean) {
+          const data = await translateRequest({
+            text,
+            sourceLang,
+            targetLang,
+            context,
+            signal: controller.signal,
+          })
+          // A newer batch started while this one was mid-flight; drop it.
+          if (isStale()) return null
+          parts.push(data)
+        }
+
+        const merged = {
+          source_text: clean.join(' '),
+          translated_text: parts
+            .map((p) => p.translated_text ?? '')
+            .join(' ')
+            .trim(),
+          source_lang: sourceLang,
+          target_lang: targetLang,
+          detected_dialect: null,
+          confidence: null,
+          risk_flags: parts.flatMap((p) => p.risk_flags ?? []),
+          needs_review: parts.some((p) => Boolean(p.needs_review)),
+          context,
+        }
+
+        // prd.md E-19: an empty string back is a failure, not a result.
+        if (!merged.translated_text) {
+          setError(new ApiError('EMPTY_TRANSLATION', 'No translation returned. Try rephrasing.', false))
+          return null
+        }
+
+        setResult(merged)
+        return merged
+      } catch (err) {
+        if (err.code === 'ABORTED' || isStale()) return null
+        setError(err)
+        return null
+      } finally {
+        if (!isStale()) setIsLoading(false)
+      }
+    },
+    [],
+  )
+
   const reset = useCallback(() => {
     setError(null)
     setResult(null)
   }, [])
 
-  return { translate, isLoading, error, result, reset }
+  return { translate, translateChunks, isLoading, error, result, reset }
 }

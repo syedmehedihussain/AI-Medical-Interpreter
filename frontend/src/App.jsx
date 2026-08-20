@@ -5,19 +5,16 @@ import Studio from './components/Studio'
 import { useSpeak } from './hooks/useSpeak'
 import { useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
+import { chunkBySentence } from './lib/chunk'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
 const PAIR_KEY = 'ami.languagePair'
 const AUTOPLAY_KEY = 'ami.autoplay'
 
-// prd.md E-11: cap a finalised segment before sending. The backend rejects
-// anything longer, so trimming here turns a hard error into a soft note.
+// prd.md E-11: the backend rejects text longer than this. A recorded passage is
+// split into pieces of at most this many characters on sentence boundaries
+// before sending (chunkBySentence), so a long monologue is never truncated.
 const MAX_SEGMENT_LENGTH = 500
-
-// How long speech must stay quiet before buffered segments are translated.
-// Long enough to absorb a mid-sentence pause, short enough to still feel
-// immediate. See the segment buffer below and decisions.md D-015.
-const SEGMENT_FLUSH_MS = 1000
 
 /**
  * Read the saved pair, defending against anything unusable in localStorage.
@@ -66,7 +63,7 @@ export default function App() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState(null)
 
-  const { translate, isLoading, error } = useTranslate()
+  const { translateChunks, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
 
   const lastRequestRef = useRef(null)
@@ -107,12 +104,17 @@ export default function App() {
    */
   const runTranslation = useCallback(
     async (rawText, { inputMode = 'typed' } = {}) => {
-      const text = rawText.slice(0, MAX_SEGMENT_LENGTH)
+      const text = rawText.trim()
+      if (!text) return null
 
       lastRequestRef.current = { text, inputMode }
       // Show the sent turn immediately, before the network answers.
       setPendingSource({ text, inputMode, sourceLang, targetLang })
-      const data = await translate({ text, sourceLang, targetLang })
+      // A recorded passage may be longer than the backend's limit; split it on
+      // sentence boundaries and translate the pieces as one exchange. Typed
+      // input is already capped at MAX_SEGMENT_LENGTH, so it stays one chunk.
+      const chunks = chunkBySentence(text, MAX_SEGMENT_LENGTH)
+      const data = await translateChunks(chunks, { sourceLang, targetLang })
       if (!data) return null
 
       setBackendReachable(true)
@@ -141,7 +143,7 @@ export default function App() {
       if (autoplay) speak.speak(data.translated_text)
       return data
     },
-    [translate, sourceLang, targetLang, autoplay, speak],
+    [translateChunks, sourceLang, targetLang, autoplay, speak],
   )
 
   /**
@@ -174,71 +176,43 @@ export default function App() {
   }, [entries, summaryLoading])
 
   /**
-   * Finalised speech segments are buffered, not translated one by one.
+   * Record-until-Done: finalised speech segments accumulate for the whole
+   * utterance and are translated only when the user clicks Done.
    *
-   * Chrome finalises a segment on every brief pause, so "I have chest pain
-   * ... since yesterday" arrives as two separate final results and, without
-   * buffering, becomes two half-sentence translations. That reads to the user
-   * as the app cutting them off mid-thought, and it translates worse, because
-   * a fragment has less context than a sentence.
-   *
-   * So segments accumulate and are sent once speech has been quiet for
-   * SEGMENT_FLUSH_MS. prd.md F-2 says a finalised phrase is sent immediately;
-   * this is a deliberate departure, recorded as D-015. The cost is under a
-   * second of added latency against a 5s budget (NFR-1.1); the benefit is
-   * whole sentences.
+   * Chrome finalises a segment on every brief pause, so a spoken sentence
+   * arrives as several `onFinalResult` calls. Rather than translate each
+   * fragment (worse context) or auto-send after a silence (the old D-015
+   * behaviour, which cut people off mid-thought), every segment is appended to
+   * the buffer and shown live. The complete passage is sent once, on Done, and
+   * chunkBySentence keeps each request within the backend's limit.
    */
   const segmentBufferRef = useRef([])
-  const flushTimerRef = useRef(null)
-  const flushRef = useRef(() => {})
-
-  const flushSegments = useCallback(() => {
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current)
-      flushTimerRef.current = null
-    }
-    const buffered = segmentBufferRef.current.join(' ').trim()
-    segmentBufferRef.current = []
-    // Clear the live dictation; the sent turn now lives in pendingSource.
-    setLastFinalText('')
-    if (buffered) runTranslation(buffered, { inputMode: 'voice' })
-  }, [runTranslation])
-
-  // The pending timer captured whichever flush existed when it was scheduled.
-  // If the language pair changed in between, that closure is stale, so the
-  // timer calls through this ref instead of the captured function.
+  const runTranslationRef = useRef(runTranslation)
   useEffect(() => {
-    flushRef.current = flushSegments
-  }, [flushSegments])
+    // finishRecording is called from an event handler that may have closed over
+    // an older runTranslation (e.g. after a language swap); go through the ref
+    // so it always sees the current one.
+    runTranslationRef.current = runTranslation
+  }, [runTranslation])
 
   const handleFinalResult = useCallback((text) => {
     segmentBufferRef.current.push(text)
-    const combined = segmentBufferRef.current.join(' ')
-    setLastFinalText(combined)
-
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
-
-    // Do not wait for quiet if the buffer is already at the length the
-    // backend would reject (E-11); send what we have.
-    if (combined.length >= MAX_SEGMENT_LENGTH) {
-      flushRef.current()
-      return
-    }
-    flushTimerRef.current = setTimeout(() => flushRef.current(), SEGMENT_FLUSH_MS)
+    // Show the transcript building up as the user speaks.
+    setLastFinalText(segmentBufferRef.current.join(' '))
   }, [])
 
   const speechLang = getLanguage(sourceLang)?.speechLang ?? 'en-US'
   const speech = useSpeech({ lang: speechLang, onFinalResult: handleFinalResult })
 
-  /** Stopping should translate what was already said, not discard it. */
-  const stopListening = useCallback(() => {
+  /** Done: stop the mic and translate everything captured so far, as one turn. */
+  const finishRecording = useCallback(() => {
     speech.stop()
-    flushRef.current()
+    const transcript = segmentBufferRef.current.join(' ').trim()
+    segmentBufferRef.current = []
+    // Clear the live dictation; the sent turn now lives in pendingSource.
+    setLastFinalText('')
+    if (transcript) runTranslationRef.current(transcript, { inputMode: 'voice' })
   }, [speech])
-
-  useEffect(() => () => {
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
-  }, [])
 
   // Drive the recording timer from the listening state: reset when the mic
   // opens, tick once a second while it stays open.
@@ -292,7 +266,7 @@ export default function App() {
       error={error}
       onRetry={retry}
       onStart={speech.start}
-      onStop={stopListening}
+      onStop={finishRecording}
       onSubmit={(text) => runTranslation(text, { inputMode: 'typed' })}
       onSpeak={speak.speak}
       hasVoice={speak.hasVoice}
