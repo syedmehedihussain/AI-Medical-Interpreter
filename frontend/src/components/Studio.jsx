@@ -206,13 +206,6 @@ function DomainPanel({ detected, confidence }) {
   )
 }
 
-function formatMedication(med) {
-  let label = med.name
-  if (med.dosage) label += ` ${med.dosage}`
-  if (med.frequency) label += ` · ${med.frequency}`
-  return label
-}
-
 function PillIcon({ className = 'h-4 w-4' }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -222,76 +215,34 @@ function PillIcon({ className = 'h-4 w-4' }) {
   )
 }
 
-function MedicationRow({ med, onConfirm, onEdit, onRemove }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const pending = med.status === 'pending'
+/** The one-line detail under a medication name: "500mg · 2×/day · before food". */
+function medicationDetail(med) {
+  const times = med.timesPerDay
+    ? /^\d+$/.test(med.timesPerDay)
+      ? `${med.timesPerDay}×/day`
+      : med.timesPerDay
+    : ''
+  return [med.dosage, times, med.timing].filter(Boolean).join(' · ')
+}
 
-  const startEdit = () => {
-    setDraft(formatMedication(med))
-    setEditing(true)
-  }
-  const save = () => {
-    const value = draft.trim()
-    if (value) onEdit(med.id, value)
-    setEditing(false)
-  }
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2">
-        {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') save()
-            if (e.key === 'Escape') setEditing(false)
-          }}
-          aria-label={`Edit ${med.name}`}
-          className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
-        />
-        <button type="button" onClick={save} className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-brand-700">
-          Save
-        </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-xs font-medium text-slate-400 transition hover:text-slate-600">
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
+function MedicationRow({ med, onEdit, onRemove }) {
+  const detail = medicationDetail(med)
   return (
     <div className="group flex items-center gap-3 px-3 py-2.5">
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${pending ? 'bg-clay-100 text-clay-600' : 'bg-brand-50 text-brand-600'}`}>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
         <PillIcon />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-800">
-          {med.name}
-          {pending && <span className="ml-1 font-normal text-clay-500">(?)</span>}
-        </p>
-        {(med.dosage || med.frequency) && (
-          <p className="truncate font-mono text-[11px] text-slate-400">
-            {[med.dosage, med.frequency].filter(Boolean).join(' · ')}
-          </p>
-        )}
+        <p className="truncate text-sm font-semibold text-slate-800">{med.name}</p>
+        {detail && <p className="truncate font-mono text-[11px] text-slate-400">{detail}</p>}
       </div>
-      {pending ? (
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => onConfirm(med.id)} className="rounded-md bg-clay-500 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-clay-600">
-            Confirm
-          </button>
-          <button type="button" onClick={startEdit} className="text-xs font-medium text-slate-500 transition hover:text-slate-800">
-            Edit
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={startEdit} className="shrink-0 text-xs font-medium text-slate-400 opacity-0 transition hover:text-slate-700 group-hover:opacity-100">
-          Edit
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => onEdit(med.id)}
+        className="shrink-0 text-xs font-medium text-slate-400 opacity-0 transition hover:text-slate-700 group-hover:opacity-100"
+      >
+        Edit
+      </button>
       <button
         type="button"
         onClick={() => onRemove(med.id)}
@@ -306,24 +257,134 @@ function MedicationRow({ med, onConfirm, onEdit, onRemove }) {
   )
 }
 
-function MedicationsPanel({ medications, onConfirm, onEdit, onRemove }) {
+function MedicationsPanel({ medications, onEdit, onRemove }) {
   return (
     <section>
       <h2 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">Medications</h2>
       <div className="rounded-2xl border border-slate-200 bg-white">
         {medications.length === 0 ? (
           <p className="px-4 py-5 text-[13px] leading-relaxed text-slate-400">
-            Medications mentioned in the conversation appear here. Unclear names wait for your confirmation.
+            Medications mentioned in the conversation appear here once you confirm them.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
             {medications.map((med) => (
-              <MedicationRow key={med.id} med={med} onConfirm={onConfirm} onEdit={onEdit} onRemove={onRemove} />
+              <MedicationRow key={med.id} med={med} onEdit={onEdit} onRemove={onRemove} />
             ))}
           </div>
         )}
       </div>
     </section>
+  )
+}
+
+const MEDICATION_FIELDS = [
+  ['name', 'Name', 'Medicine name'],
+  ['dosage', 'Dosage', 'e.g. 500mg'],
+  ['timesPerDay', 'Times per day', 'e.g. 2'],
+  ['timing', 'Timing', 'e.g. before food'],
+]
+
+/**
+ * The verification popup. Pops in front for every medication mentioned (and is
+ * reused to edit a confirmed one). Pre-filled with the model's guess; the
+ * doctor or patient checks the name, dosage, times/day, and timing, then
+ * Confirms it into the list or Discards it.
+ */
+function MedicationDialog({ modal, onConfirm, onDismiss }) {
+  const [fields, setFields] = useState(null)
+
+  // Reseed the form whenever a different medication is shown (next in the
+  // queue, or a row opened for editing).
+  useEffect(() => {
+    if (!modal) return
+    setFields({
+      name: modal.med.name ?? '',
+      dosage: modal.med.dosage ?? '',
+      timesPerDay: modal.med.timesPerDay ?? '',
+      timing: modal.med.timing ?? '',
+    })
+  }, [modal])
+
+  if (!modal || !fields) return null
+
+  const isEdit = modal.mode === 'edit'
+  const unsure = !isEdit && modal.med.confident === false
+  const canSave = fields.name.trim().length > 0
+  const setField = (key) => (e) => setFields((f) => ({ ...f, [key]: e.target.value }))
+  const submit = () => {
+    if (canSave) onConfirm(fields)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEdit ? 'Edit medication' : 'Verify medication'}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onDismiss()
+        }}
+        className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl"
+      >
+        <div className="flex items-start gap-3">
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${unsure ? 'bg-clay-100 text-clay-600' : 'bg-brand-50 text-brand-600'}`}>
+            <PillIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="font-serif text-xl font-semibold text-slate-900">
+              {isEdit ? 'Edit medication' : 'Are you sure about this medication?'}
+            </h2>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">
+              {isEdit
+                ? 'Update the details, then save.'
+                : unsure
+                  ? 'We are not sure we caught this name correctly. Doctor or patient: please check and fix it before saving.'
+                  : 'Confirm the name and details, or correct anything that is wrong.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {MEDICATION_FIELDS.map(([key, label, placeholder], i) => (
+            <label key={key} className="block">
+              <span className="mb-1 block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">{label}</span>
+              <input
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus={i === 0}
+                value={fields[key]}
+                onChange={setField(key)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submit()
+                }}
+                placeholder={placeholder}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+          >
+            {isEdit ? 'Cancel' : 'Discard'}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSave}
+            className="rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40"
+          >
+            {isEdit ? 'Save' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -529,9 +590,11 @@ export default function Studio({
   summaryError,
   onGenerateSummary,
   medications,
-  onConfirmMedication,
-  onEditMedication,
+  onStartEditMedication,
   onRemoveMedication,
+  medicationModal,
+  onConfirmMedicationModal,
+  onDismissMedicationModal,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
@@ -805,13 +868,18 @@ export default function Studio({
             <DomainPanel detected={domainHint?.id ?? null} confidence={domainHint?.confidence ?? 0} />
             <MedicationsPanel
               medications={medications}
-              onConfirm={onConfirmMedication}
-              onEdit={onEditMedication}
+              onEdit={onStartEditMedication}
               onRemove={onRemoveMedication}
             />
           </div>
         </div>
       </div>
+
+      <MedicationDialog
+        modal={medicationModal}
+        onConfirm={onConfirmMedicationModal}
+        onDismiss={onDismissMedicationModal}
+      />
     </div>
   )
 }

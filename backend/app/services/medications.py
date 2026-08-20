@@ -38,7 +38,10 @@ def build_extraction_prompt(text: str) -> str:
         '  "name": the canonical English brand or generic name (normalise a '
         "Bangla mention or a likely misspelling to the standard English name),\n"
         '  "dosage": the dose if stated (e.g. "500mg"), else "",\n'
-        '  "frequency": how often if stated (e.g. "twice daily"), else "",\n'
+        '  "times_per_day": how many times a day if stated, as a short string '
+        '(e.g. "2" or "twice"), else "",\n'
+        '  "timing": when it is taken if stated (e.g. "before breakfast", "at '
+        'night"), else "",\n'
         '  "confident": true if you are sure you identified the drug name '
         "correctly, false if the name is unclear, ambiguous, or possibly "
         "misheard.\n"
@@ -80,7 +83,9 @@ def parse_medications(raw: str) -> list[Medication]:
             Medication(
                 name=name,
                 dosage=str(item.get("dosage", "") or "").strip(),
-                frequency=str(item.get("frequency", "") or "").strip(),
+                # Coerced to str: the model sometimes returns a bare number.
+                times_per_day=str(item.get("times_per_day", "") or "").strip(),
+                timing=str(item.get("timing", "") or "").strip(),
                 # Default to needing confirmation unless the model is explicit.
                 confident=bool(item.get("confident", False)),
             )

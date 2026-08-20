@@ -292,15 +292,18 @@ class Medication(BaseModel):
     """One medication mentioned in the conversation.
 
     `name` is a canonical English drug name (a Bangla mention or a misspelling is
-    normalised by the model). `dosage` and `frequency` carry whatever was said in
-    the same breath, or empty when not stated. `confident` is False when the
-    model is unsure it heard the name correctly, which is what drives the
-    doctor's confirm/edit control in the UI.
+    normalised by the model). `dosage`, `times_per_day`, and `timing` carry
+    whatever was said in the same breath, or empty when not stated;
+    `times_per_day` is kept as a string ("2", "twice") so the model's phrasing
+    survives and the field never fails validation on a non-integer. `confident`
+    is False when the model is unsure it heard the name correctly, which the UI
+    uses to show a louder warning on the verification popup.
     """
 
     name: str
     dosage: str = ""
-    frequency: str = ""
+    times_per_day: str = ""
+    timing: str = ""
     confident: bool = True
 
 

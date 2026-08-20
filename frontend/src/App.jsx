@@ -62,9 +62,12 @@ export default function App() {
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState(null)
-  // Medications named across the session, extracted per turn. Confident ones
-  // land 'confirmed'; unsure ones are 'pending' until the doctor confirms/edits.
+  // Medications the doctor/patient has verified, shown in the console list.
   const [medications, setMedications] = useState([])
+  // Extracted medications awaiting verification: each pops a modal in turn.
+  const [verifyQueue, setVerifyQueue] = useState([])
+  // A listed medication reopened for editing via the same modal, or null.
+  const [editingId, setEditingId] = useState(null)
 
   const { translateChunks, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
@@ -110,6 +113,13 @@ export default function App() {
    * is already listed; a confident name lands 'confirmed', an unsure one
    * 'pending' so the doctor can confirm or edit it.
    */
+  // Kept in sync so the dedupe inside the enqueue updater can see the current
+  // confirmed list without re-creating detectMedications on every change.
+  const medicationsRef = useRef([])
+  useEffect(() => {
+    medicationsRef.current = medications
+  }, [medications])
+
   const detectMedications = useCallback(async (englishText) => {
     if (!englishText?.trim()) return
     let found
@@ -122,8 +132,14 @@ export default function App() {
     }
     if (found.length === 0) return
 
-    setMedications((previous) => {
-      const seen = new Set(previous.map((m) => m.name.trim().toLowerCase()))
+    // Every extracted medication is queued for verification rather than added
+    // straight to the list. Skip names already queued or already confirmed so
+    // the same drug mentioned twice does not pop a second time.
+    setVerifyQueue((queue) => {
+      const seen = new Set([
+        ...queue.map((m) => m.name.trim().toLowerCase()),
+        ...medicationsRef.current.map((m) => m.name.trim().toLowerCase()),
+      ])
       const additions = []
       for (const med of found) {
         const name = (med.name ?? '').trim()
@@ -135,35 +151,82 @@ export default function App() {
           id: `med-${medCounterRef.current}`,
           name,
           dosage: (med.dosage ?? '').trim(),
-          frequency: (med.frequency ?? '').trim(),
-          status: med.confident ? 'confirmed' : 'pending',
+          timesPerDay: (med.times_per_day ?? '').trim(),
+          timing: (med.timing ?? '').trim(),
+          confident: Boolean(med.confident),
         })
       }
-      return additions.length ? [...previous, ...additions] : previous
+      return additions.length ? [...queue, ...additions] : queue
     })
   }, [])
 
-  const confirmMedication = useCallback((id) => {
-    setMedications((previous) =>
-      previous.map((m) => (m.id === id ? { ...m, status: 'confirmed' } : m)),
-    )
-  }, [])
-
-  const editMedication = useCallback((id, nextName) => {
-    const name = nextName.trim()
+  /** Add a verified (or edited) medication to the list, deduped by name. */
+  const upsertMedication = useCallback((id, fields) => {
+    const name = fields.name.trim()
     if (!name) return
-    // The doctor's typed string becomes the authoritative label, so the
-    // model's separate dosage/frequency guesses are cleared.
-    setMedications((previous) =>
-      previous.map((m) =>
-        m.id === id ? { ...m, name, dosage: '', frequency: '', status: 'confirmed' } : m,
-      ),
-    )
+    const next = {
+      id,
+      name,
+      dosage: fields.dosage.trim(),
+      timesPerDay: fields.timesPerDay.trim(),
+      timing: fields.timing.trim(),
+    }
+    setMedications((previous) => {
+      const idx = previous.findIndex((m) => m.id === id)
+      if (idx !== -1) {
+        // Editing an existing row.
+        const copy = [...previous]
+        copy[idx] = next
+        return copy
+      }
+      // New row: drop it if the same name was confirmed in the meantime.
+      if (previous.some((m) => m.name.trim().toLowerCase() === name.toLowerCase())) {
+        return previous
+      }
+      return [...previous, next]
+    })
   }, [])
 
   const removeMedication = useCallback((id) => {
     setMedications((previous) => previous.filter((m) => m.id !== id))
+    setEditingId((current) => (current === id ? null : current))
   }, [])
+
+  const startEditMedication = useCallback((id) => setEditingId(id), [])
+
+  // The modal shows an edit of a listed med if one is open, otherwise the head
+  // of the verification queue. Editing (user-initiated) takes priority.
+  const editingMed = editingId ? medications.find((m) => m.id === editingId) : null
+  const medicationModal = editingMed
+    ? { mode: 'edit', med: editingMed }
+    : verifyQueue.length
+      ? { mode: 'verify', med: verifyQueue[0] }
+      : null
+
+  const confirmMedicationModal = useCallback(
+    (fields) => {
+      if (editingId) {
+        upsertMedication(editingId, fields)
+        setEditingId(null)
+        return
+      }
+      const head = verifyQueue[0]
+      if (head) {
+        upsertMedication(head.id, fields)
+        setVerifyQueue((queue) => queue.filter((m) => m.id !== head.id))
+      }
+    },
+    [editingId, verifyQueue, upsertMedication],
+  )
+
+  const dismissMedicationModal = useCallback(() => {
+    if (editingId) {
+      setEditingId(null)
+      return
+    }
+    const head = verifyQueue[0]
+    if (head) setVerifyQueue((queue) => queue.filter((m) => m.id !== head.id))
+  }, [editingId, verifyQueue])
 
   /**
    * The single translation entry point, shared by voice and typing.
@@ -351,9 +414,11 @@ export default function App() {
       summaryError={summaryError}
       onGenerateSummary={generateSummary}
       medications={medications}
-      onConfirmMedication={confirmMedication}
-      onEditMedication={editMedication}
+      onStartEditMedication={startEditMedication}
       onRemoveMedication={removeMedication}
+      medicationModal={medicationModal}
+      onConfirmMedicationModal={confirmMedicationModal}
+      onDismissMedicationModal={dismissMedicationModal}
     />
   )
 }
