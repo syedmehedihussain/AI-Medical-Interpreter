@@ -647,6 +647,12 @@ export default function Studio({
   onSaveReport,
   reportBusy,
   canReport,
+  saveState,
+  authConfigured,
+  accountEmail,
+  onOpenAuth,
+  onLogout,
+  onOpenReports,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
@@ -693,14 +699,48 @@ export default function Studio({
             </span>
           </button>
 
-          <div className={`flex items-center gap-2 rounded-2xl border px-4 py-2 ${offline ? 'border-slate-200 bg-slate-50' : 'border-brand-200 bg-brand-50/60'}`}>
-            <span className={`h-2 w-2 rounded-full ${offline ? 'border-2 border-slate-400 bg-transparent' : 'animate-pulse-dot bg-clay-500'}`} />
-            <span className="text-sm">
-              <span className="font-semibold text-slate-800">{offline ? 'Offline' : 'Live session'}</span>
-              <span className="ml-2 font-mono text-xs text-slate-500">
-                {getDisplayLabel(sourceLang)} → {getDisplayLabel(targetLang)}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className={`flex items-center gap-2 rounded-2xl border px-4 py-2 ${offline ? 'border-slate-200 bg-slate-50' : 'border-brand-200 bg-brand-50/60'}`}>
+              <span className={`h-2 w-2 rounded-full ${offline ? 'border-2 border-slate-400 bg-transparent' : 'animate-pulse-dot bg-clay-500'}`} />
+              <span className="text-sm">
+                <span className="font-semibold text-slate-800">{offline ? 'Offline' : 'Live session'}</span>
+                <span className="ml-2 font-mono text-xs text-slate-500">
+                  {getDisplayLabel(sourceLang)} → {getDisplayLabel(targetLang)}
+                </span>
               </span>
-            </span>
+            </div>
+
+            {authConfigured && (
+              accountEmail ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onOpenReports}
+                    className="rounded-full border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+                  >
+                    My reports
+                  </button>
+                  <span className="hidden max-w-[160px] truncate text-xs text-slate-500 sm:inline" title={accountEmail}>
+                    {accountEmail}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="rounded-full px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  >
+                    Log out
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+                >
+                  Log in
+                </button>
+              )
+            )}
           </div>
         </header>
 
@@ -924,7 +964,7 @@ export default function Studio({
 
             <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[13px] leading-relaxed text-slate-500">
-                Export the summary and confirmed medications as a prescription, or save it to your vault.
+                Export the summary and confirmed medications as a prescription, or save it to your account.
               </p>
               <div className="flex shrink-0 gap-2">
                 <button
@@ -938,17 +978,38 @@ export default function Studio({
                   </svg>
                   {reportBusy ? 'Preparing…' : 'Download report'}
                 </button>
+                {authConfigured && (
                 <button
                   type="button"
                   onClick={onSaveReport}
-                  className="flex items-center gap-2 rounded-full border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+                  disabled={!canReport || saveState === 'saving'}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:opacity-40 ${
+                    saveState === 'saved'
+                      ? 'border-brand-600 bg-brand-600 text-white'
+                      : 'border-brand-200 text-brand-700 hover:bg-brand-50'
+                  }`}
                 >
-                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <path d="M5 3h8l3 3v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" strokeLinejoin="round" />
-                    <path d="M7 3v5h5M7 13h6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Save your report
+                  {saveState === 'saved' ? (
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M5 3h8l3 3v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" strokeLinejoin="round" />
+                      <path d="M7 3v5h5M7 13h6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                  {saveState === 'saving'
+                    ? 'Saving…'
+                    : saveState === 'saved'
+                      ? 'Saved'
+                      : saveState === 'error'
+                        ? 'Try again'
+                        : accountEmail
+                          ? 'Save your report'
+                          : 'Log in to save'}
                 </button>
+                )}
               </div>
             </div>
           </main>

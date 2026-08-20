@@ -82,6 +82,10 @@ class ErrorCode(str, Enum):
     PROVIDER_RATE_LIMITED = "PROVIDER_RATE_LIMITED"
     PROVIDER_TIMEOUT = "PROVIDER_TIMEOUT"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    # v0.2 accounts + saved reports
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    NOT_FOUND = "NOT_FOUND"
+    REPORTS_UNAVAILABLE = "REPORTS_UNAVAILABLE"
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +315,73 @@ class MedicationsData(BaseModel):
     """The "data" object of POST /api/medications."""
 
     medications: list[Medication] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Saved reports (v0.2 accounts; additive)
+# ---------------------------------------------------------------------------
+
+
+class ReportCreate(BaseModel):
+    """Body of POST /api/reports -- what the doctor chose to save.
+
+    `transcript` and `medications` are stored verbatim as JSON and are opaque to
+    the backend: it persists and returns them without interpreting their inner
+    shape, so the frontend owns that structure (a transcript turn is
+    `{speaker, sourceText, translatedText, sourceLang, targetLang}`; a medication
+    is `{name, dosage, timesPerDay, timing}`). A report with no dialogue is
+    rejected -- there is nothing to save.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = ""
+    language_pair: str = ""
+    summary: str = ""
+    transcript: list[dict] = Field(default_factory=list)
+    medications: list[dict] = Field(default_factory=list)
+
+    @field_validator("transcript")
+    @classmethod
+    def transcript_must_be_present(cls, value: list[dict]) -> list[dict]:
+        from app.errors import EmptyInputError
+
+        if not value:
+            raise EmptyInputError("Nothing to save yet.")
+        return value
+
+
+class ReportListItem(BaseModel):
+    """One row in GET /api/reports -- enough to render the history list."""
+
+    id: str
+    created_at: str
+    title: str
+    language_pair: str
+    medication_count: int
+
+
+class ReportData(BaseModel):
+    """A full saved report: GET /api/reports/{id} and the POST response.
+
+    Carries everything the prescription shows -- the dialogue transcript, the
+    summary, and the medications -- so the history detail can re-render and
+    re-download it.
+    """
+
+    id: str
+    created_at: str
+    title: str
+    language_pair: str
+    summary: str
+    transcript: list[dict] = Field(default_factory=list)
+    medications: list[dict] = Field(default_factory=list)
+
+
+class ReportsListData(BaseModel):
+    """The "data" object of GET /api/reports."""
+
+    reports: list[ReportListItem] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

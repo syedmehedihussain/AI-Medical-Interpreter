@@ -109,3 +109,45 @@ class InternalError(AppError):
     status_code = 500
     retryable = True
     message = "Translation failed. Try again."
+
+
+# --- Accounts + saved reports (v0.2) ---
+
+
+class AuthRequiredError(AppError):
+    """The caller is anonymous but the route needs a signed-in user.
+
+    Not retryable in the mechanical sense (retrying the same request without a
+    token fails identically); the client's job is to prompt a login.
+    """
+
+    code = ErrorCode.AUTH_REQUIRED
+    status_code = 401
+    retryable = False
+    message = "Log in to do that."
+
+
+class NotFoundError(AppError):
+    """A report that does not exist, or belongs to another user.
+
+    The two are deliberately indistinguishable: telling a caller that a report
+    id exists but is not theirs leaks the existence of other users' data.
+    """
+
+    code = ErrorCode.NOT_FOUND
+    status_code = 404
+    retryable = False
+    message = "That report wasn't found."
+
+
+class ReportsUnavailableError(AppError):
+    """Saved reports are not configured on this server (no Supabase env).
+
+    Mirrors ProviderUnavailableError: the real reason (missing configuration) is
+    logged, the caller sees a generic unavailable.
+    """
+
+    code = ErrorCode.REPORTS_UNAVAILABLE
+    status_code = 503
+    retryable = True
+    message = "Saved reports aren't available right now."

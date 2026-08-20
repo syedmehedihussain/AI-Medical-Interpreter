@@ -34,7 +34,7 @@ export class ApiError extends Error {
  * (prd.md E-17). It is combined with the internal timeout signal, so whichever
  * fires first wins.
  */
-async function request(path, { method = 'GET', body, signal } = {}) {
+async function request(path, { method = 'GET', body, signal, token } = {}) {
   const timeoutController = new AbortController()
   const timer = setTimeout(() => timeoutController.abort(), TIMEOUT_MS)
 
@@ -44,11 +44,17 @@ async function request(path, { method = 'GET', body, signal } = {}) {
   if (signal) signals.push(signal)
   const combined = AbortSignal.any ? AbortSignal.any(signals) : timeoutController.signal
 
+  // Assemble headers: JSON content-type when there is a body, and the Supabase
+  // access token as a bearer for the endpoints that require a signed-in user.
+  const headers = {}
+  if (body) headers['Content-Type'] = 'application/json'
+  if (token) headers.Authorization = `Bearer ${token}`
+
   let response
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
       body: body ? JSON.stringify(body) : undefined,
       signal: combined,
     })
@@ -141,6 +147,26 @@ export function extractMedications({ text, signal }) {
     body: { text },
     signal,
   })
+}
+
+/**
+ * Saved reports (require a Supabase access token). The report contains the
+ * dialogue transcript, the summary, and the confirmed medications.
+ */
+export function saveReport({ report, token }) {
+  return request('/api/reports', { method: 'POST', body: report, token })
+}
+
+export function listReports({ token, signal } = {}) {
+  return request('/api/reports', { token, signal })
+}
+
+export function getReport({ id, token, signal } = {}) {
+  return request(`/api/reports/${id}`, { token, signal })
+}
+
+export function deleteReport({ id, token }) {
+  return request(`/api/reports/${id}`, { method: 'DELETE', token })
 }
 
 export function translate({ text, sourceLang, targetLang, context = 'general', signal }) {

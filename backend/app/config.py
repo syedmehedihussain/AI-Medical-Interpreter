@@ -68,6 +68,17 @@ class Settings(BaseSettings):
     # Seconds to wait on the upstream translation provider. Used from Stage 2.
     request_timeout_seconds: float = 15.0
 
+    # --- Supabase (v0.2 accounts + saved reports) ------------------------------
+    # All optional, like the provider keys: absent values never stop the server
+    # starting, they only make the reports feature report not-ready (503). The
+    # translation/summary/medication features do not depend on any of these.
+    #   supabase_url                -> https://<project>.supabase.co
+    #   supabase_service_role_key   -> writes rows via PostgREST (server-only secret)
+    #   supabase_jwt_secret         -> verifies the Supabase access token (HS256)
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    supabase_jwt_secret: str | None = None
+
     @property
     def allowed_origins_list(self) -> list[str]:
         """ALLOWED_ORIGINS parsed into the list CORSMiddleware expects."""
@@ -89,6 +100,20 @@ class Settings(BaseSettings):
         is "gemini", mirroring google_ready.
         """
         return bool(self.gemini_api_key and self.gemini_api_key.strip())
+
+    @property
+    def supabase_ready(self) -> bool:
+        """True when all three Supabase settings are present.
+
+        The reports feature needs the URL (where to write), the service role key
+        (permission to write), and the JWT secret (to trust the caller). Missing
+        any one means the feature reports unavailable rather than half-working.
+        """
+        return bool(
+            (self.supabase_url or "").strip()
+            and (self.supabase_service_role_key or "").strip()
+            and (self.supabase_jwt_secret or "").strip()
+        )
 
 
 @lru_cache

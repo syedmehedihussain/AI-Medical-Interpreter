@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { extractMedications, getHealth, summarize } from './api/client'
+import { extractMedications, getHealth, saveReport, summarize } from './api/client'
+import AuthModal from './components/AuthModal'
 import Home from './components/Home'
+import MyReports from './components/MyReports'
 import Studio from './components/Studio'
+import { useAuth } from './hooks/useAuth'
 import { useSpeak } from './hooks/useSpeak'
 import { useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
 import { chunkBySentence } from './lib/chunk'
 import { getDisplayLabel } from './lib/languages'
-import { buildPrescriptionHTML, openPrintWindow, VAULT_URL } from './lib/report'
+import { buildPrescriptionHTML, openPrintWindow } from './lib/report'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
 const ROLES_KEY = 'ami.roles'
@@ -104,6 +107,11 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   // True while the Download report button is assembling the prescription.
   const [reportBusy, setReportBusy] = useState(false)
+  // Accounts (Supabase). Guests have user=null and can use everything but save.
+  const auth = useAuth()
+  const [authOpen, setAuthOpen] = useState(false)
+  // Feedback for the Save-to-account button: idle | saving | saved | error.
+  const [saveState, setSaveState] = useState('idle')
 
   const { translateChunks, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
@@ -383,9 +391,64 @@ export default function App() {
     }
   }, [reportBusy, entries, summary, medications, sourceLang, targetLang])
 
-  const saveReport = useCallback(() => {
-    window.open(VAULT_URL, '_blank', 'noopener,noreferrer')
-  }, [])
+  /**
+   * Save the current session to the signed-in user's account.
+   *
+   * Guests are prompted to log in first (nothing is saved without an account).
+   * The saved report is exactly the prescription's contents: the dialogue
+   * transcript, the AI summary (generated here if not already), and the
+   * confirmed medications. No audio is stored.
+   */
+  const saveReportToAccount = useCallback(async () => {
+    if (!auth.user) {
+      setAuthOpen(true)
+      return
+    }
+    if (entries.length === 0 || saveState === 'saving') return
+    setSaveState('saving')
+    try {
+      let summaryText = summary
+      if (!summaryText) {
+        try {
+          const data = await summarize({ turns: entriesToTurns(entries) })
+          summaryText = data.summary
+          setSummary(data.summary)
+        } catch {
+          summaryText = ''
+        }
+      }
+      const report = {
+        title: `Consultation · ${new Date().toLocaleDateString()}`,
+        language_pair: `${doctorLang}-${patientLang}`,
+        summary: summaryText,
+        transcript: entries.map((e) => ({
+          speaker: e.speaker,
+          sourceText: e.sourceText,
+          translatedText: e.translatedText,
+          sourceLang: e.sourceLang,
+          targetLang: e.targetLang,
+        })),
+        medications: medications.map((m) => ({
+          name: m.name,
+          dosage: m.dosage,
+          timesPerDay: m.timesPerDay,
+          timing: m.timing,
+        })),
+      }
+      await saveReport({ report, token: auth.accessToken })
+      setSaveState('saved')
+      setTimeout(() => setSaveState('idle'), 2500)
+    } catch (err) {
+      console.warn('[report] save failed:', err?.code || err)
+      setSaveState('error')
+      setTimeout(() => setSaveState('idle'), 2500)
+    }
+  }, [auth.user, auth.accessToken, entries, saveState, summary, medications, doctorLang, patientLang])
+
+  // Close the auth modal once a session exists (login or confirmed sign-up).
+  useEffect(() => {
+    if (auth.user) setAuthOpen(false)
+  }, [auth.user])
 
   /**
    * Record-until-Done: finalised speech segments accumulate for the whole
@@ -473,9 +536,25 @@ export default function App() {
     return <Home onStart={() => setView('tool')} />
   }
 
+  const authModal = authOpen ? (
+    <AuthModal onClose={() => setAuthOpen(false)} onSignIn={auth.signIn} onSignUp={auth.signUp} />
+  ) : null
+
+  // The My reports screen is only reachable signed in; if the session ends
+  // while it is open, fall back to the session view.
+  if (view === 'reports' && auth.user) {
+    return (
+      <>
+        <MyReports token={auth.accessToken} onBack={() => setView('tool')} />
+        {authModal}
+      </>
+    )
+  }
+
   const liveText = [lastFinalText, speech.interimText].filter(Boolean).join(' ')
 
   return (
+    <>
     <Studio
       sourceLang={sourceLang}
       targetLang={targetLang}
@@ -513,9 +592,17 @@ export default function App() {
       onConfirmMedicationModal={confirmMedicationModal}
       onDismissMedicationModal={dismissMedicationModal}
       onDownloadReport={downloadReport}
-      onSaveReport={saveReport}
+      onSaveReport={saveReportToAccount}
       reportBusy={reportBusy}
       canReport={entries.length > 0}
+      saveState={saveState}
+      authConfigured={auth.configured}
+      accountEmail={auth.user?.email ?? null}
+      onOpenAuth={() => setAuthOpen(true)}
+      onLogout={auth.signOut}
+      onOpenReports={() => setView('reports')}
     />
+    {authModal}
+    </>
   )
 }
