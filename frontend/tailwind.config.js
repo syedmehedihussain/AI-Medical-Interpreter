@@ -25,6 +25,35 @@ export default {
         // Warm off-white page canvas, faintly tinted toward the brand hue so
         // the white cards sitting on it read as raised, not flush.
         canvas: '#f5f8f4',
+        // Deep pine/teal green: the clinical console's primary voice (design
+        // reference: the MITA mockup). Cooler and more serious than `brand`
+        // grass green, which stays on the marketing home screen.
+        pine: {
+          50: '#eaf3f0',
+          100: '#d3e7e0',
+          200: '#a6cfc2',
+          300: '#6faf9d',
+          400: '#3d8d78',
+          500: '#1c7460',
+          600: '#136b5b',
+          700: '#0e5648',
+          800: '#0b4539',
+          900: '#08352c',
+        },
+        // Coral/clay: the one warm accent, used sparingly for the live pulse,
+        // the record button, and the detected-domain highlight.
+        clay: {
+          50: '#fdf0ea',
+          100: '#fbdccf',
+          200: '#f6b39c',
+          300: '#f08a6a',
+          400: '#ea6f47',
+          500: '#e2613c',
+          600: '#c94e2c',
+          700: '#a83e22',
+        },
+        // Neutral canvas for the console (cooler light grey than the home).
+        console: '#f1f3f1',
       },
       keyframes: {
         'rise-in': {
@@ -35,10 +64,21 @@ export default {
           '0%, 100%': { transform: 'translateY(0) scale(1)' },
           '50%': { transform: 'translateY(-16px) scale(1.015)' },
         },
+        // The ECG trace drawing itself, left to right, on a loop.
+        ecg: {
+          '0%': { strokeDashoffset: '1200' },
+          '100%': { strokeDashoffset: '0' },
+        },
+        'pulse-dot': {
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.55', transform: 'scale(1.35)' },
+        },
       },
       animation: {
         'rise-in': 'rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
         float: 'float 9s ease-in-out infinite',
+        ecg: 'ecg 3.5s linear infinite',
+        'pulse-dot': 'pulse-dot 1.6s ease-in-out infinite',
       },
       fontFamily: {
         // Bengali is loaded explicitly rather than left to the system font
@@ -47,6 +87,9 @@ export default {
         // stapled together (design.md, Typography).
         sans: ['Inter', 'Noto Sans Bengali', 'system-ui', 'sans-serif'],
         bengali: ['Noto Sans Bengali', 'Inter', 'system-ui', 'sans-serif'],
+        // Editorial serif for the console's "Hello, I'm Mita" display heading.
+        serif: ['Fraunces', 'Georgia', 'serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       fontSize: {
         // prd.md section 6: Bengali body text at 18px minimum, with more line

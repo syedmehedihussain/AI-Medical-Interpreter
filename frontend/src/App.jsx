@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getHealth } from './api/client'
-import Composer from './components/Composer'
-import Conversation from './components/Conversation'
-import DirectionBar from './components/DirectionBar'
-import Header from './components/Header'
 import Home from './components/Home'
-import { COPY } from './lib/messages'
+import Studio from './components/Studio'
 import { useSpeak } from './hooks/useSpeak'
 import { useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
@@ -60,13 +56,15 @@ export default function App() {
   const [view, setView] = useState('home')
   const [{ sourceLang, targetLang }, setLanguagePair] = useState(loadLanguagePair)
   const [backendReachable, setBackendReachable] = useState(null)
-  const [autoplay, setAutoplay] = useState(loadAutoplay)
+  const [autoplay] = useState(loadAutoplay)
   const [entries, setEntries] = useState([])
   const [lastFinalText, setLastFinalText] = useState('')
   // The utterance currently being sent/translated, shown as an in-flight chat
   // turn (source bubble + translating dots). Cleared on success; kept on error
   // so the failed turn stays visible with a retry.
   const [pendingSource, setPendingSource] = useState(null)
+  // Seconds the mic has been open, for the console's recording timer.
+  const [listenSeconds, setListenSeconds] = useState(0)
 
   const { translate, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
@@ -135,6 +133,7 @@ export default function App() {
           inputMode,
           confidence: data.confidence,
           riskFlags: data.risk_flags ?? [],
+          needsReview: Boolean(data.needs_review),
         },
       ])
       // The turn is now committed to the transcript; drop the in-flight copy.
@@ -213,6 +212,15 @@ export default function App() {
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
   }, [])
 
+  // Drive the recording timer from the listening state: reset when the mic
+  // opens, tick once a second while it stays open.
+  useEffect(() => {
+    if (!speech.isListening) return undefined
+    setListenSeconds(0)
+    const id = setInterval(() => setListenSeconds((s) => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [speech.isListening])
+
   // The composer always shows a text field, so there is no separate "open the
   // typing panel" state to manage when voice is unavailable (prd.md E-1, E-2):
   // typing is always available right where the mic would be.
@@ -235,67 +243,40 @@ export default function App() {
     setLastFinalText('')
   }, [])
 
-  // Listening outranks a live request, which outranks idle. Offline outranks
-  // everything, since nothing can complete without the backend.
-  let status = 'ready'
-  if (backendReachable === false) status = 'offline'
-  else if (speech.isListening) status = 'listening'
-  else if (isLoading) status = 'translating'
+  // Nothing can complete without the backend, so surface an offline state in
+  // the console's live-session indicator.
+  const offline = backendReachable === false
 
   if (view === 'home') {
     return <Home onStart={() => setView('tool')} />
   }
 
-  // The tool as a calm, centered chat surface floating on the warm canvas:
-  // header, a compact direction control, the conversation stream, and one
-  // composer at the bottom. Speak or type; each turn is your words plus their
-  // translation, not a back-and-forth with a bot.
+  // The tool as a three-panel clinical console (design reference: the MITA
+  // mockup). Studio is presentation; all translation wiring stays here.
   const liveText = [lastFinalText, speech.interimText].filter(Boolean).join(' ')
 
   return (
-    <div className="flex h-[100dvh] flex-col px-0 py-0 sm:px-4 sm:py-6">
-      <div className="mx-auto flex h-full w-full max-w-2xl animate-rise-in flex-col overflow-hidden border-slate-200 bg-white shadow-xl shadow-slate-900/[0.06] sm:rounded-3xl sm:border">
-        <Header status={status} onBack={() => setView('home')} />
-
-        <DirectionBar
-          sourceLang={sourceLang}
-          targetLang={targetLang}
-          onChange={handleLanguageChange}
-          autoplay={autoplay}
-          onAutoplayChange={setAutoplay}
-          hasEntries={entries.length > 0}
-          onClear={() => {
-            if (window.confirm(COPY.clearConfirm)) {
-              setEntries([])
-              setPendingSource(null)
-            }
-          }}
-        />
-
-        <Conversation
-          entries={entries}
-          pending={pendingSource}
-          isTranslating={isLoading}
-          error={error}
-          onRetry={retry}
-          liveText={liveText}
-          isListening={speech.isListening}
-          sourceLang={sourceLang}
-          onSpeak={speak.speak}
-          isSpeaking={speak.isSpeaking}
-          hasVoice={speak.hasVoice}
-        />
-
-        <Composer
-          isListening={speech.isListening}
-          isSupported={speech.isSupported}
-          onStart={speech.start}
-          onStop={stopListening}
-          onSubmit={(text) => runTranslation(text, { inputMode: 'typed' })}
-          sourceLang={sourceLang}
-          speechError={speech.error}
-        />
-      </div>
-    </div>
+    <Studio
+      sourceLang={sourceLang}
+      targetLang={targetLang}
+      onLanguageChange={handleLanguageChange}
+      onBack={() => setView('home')}
+      offline={offline}
+      isListening={speech.isListening}
+      isSupported={speech.isSupported}
+      liveText={liveText}
+      listenSeconds={listenSeconds}
+      entries={entries}
+      pending={pendingSource}
+      isTranslating={isLoading}
+      error={error}
+      onRetry={retry}
+      onStart={speech.start}
+      onStop={stopListening}
+      onSubmit={(text) => runTranslation(text, { inputMode: 'typed' })}
+      onSpeak={speak.speak}
+      hasVoice={speak.hasVoice}
+      isSpeaking={speak.isSpeaking}
+    />
   )
 }
