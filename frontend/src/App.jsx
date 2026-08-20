@@ -6,6 +6,8 @@ import { useSpeak } from './hooks/useSpeak'
 import { useSpeech } from './hooks/useSpeech'
 import { useTranslate } from './hooks/useTranslate'
 import { chunkBySentence } from './lib/chunk'
+import { getDisplayLabel } from './lib/languages'
+import { buildPrescriptionHTML, openPrintWindow, VAULT_URL } from './lib/report'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
 
 const PAIR_KEY = 'ami.languagePair'
@@ -35,6 +37,22 @@ function loadLanguagePair() {
   } catch {
     return fallback
   }
+}
+
+/**
+ * Map transcript entries to English-side turns for the summary/report.
+ *
+ * Each turn is the doctor's own English utterance, or the English translation
+ * of the patient's Bangla, so the note reads in one language.
+ */
+function entriesToTurns(entries) {
+  return entries.map((entry) => {
+    const doctorSide = entry.sourceLang === 'en'
+    return {
+      speaker: doctorSide ? 'doctor' : 'patient',
+      text: doctorSide ? entry.sourceText : entry.translatedText,
+    }
+  })
 }
 
 function loadAutoplay() {
@@ -68,6 +86,8 @@ export default function App() {
   const [verifyQueue, setVerifyQueue] = useState([])
   // A listed medication reopened for editing via the same modal, or null.
   const [editingId, setEditingId] = useState(null)
+  // True while the Download report button is assembling the prescription.
+  const [reportBusy, setReportBusy] = useState(false)
 
   const { translateChunks, isLoading, error } = useTranslate()
   const speak = useSpeak({ lang: targetLang })
@@ -294,17 +314,10 @@ export default function App() {
    */
   const generateSummary = useCallback(async () => {
     if (summaryLoading || entries.length === 0) return
-    const turns = entries.map((entry) => {
-      const doctorSide = entry.sourceLang === 'en'
-      return {
-        speaker: doctorSide ? 'doctor' : 'patient',
-        text: doctorSide ? entry.sourceText : entry.translatedText,
-      }
-    })
     setSummaryLoading(true)
     setSummaryError(null)
     try {
-      const data = await summarize({ turns })
+      const data = await summarize({ turns: entriesToTurns(entries) })
       setSummary(data.summary)
     } catch (err) {
       setSummaryError(err)
@@ -312,6 +325,47 @@ export default function App() {
       setSummaryLoading(false)
     }
   }, [entries, summaryLoading])
+
+  /**
+   * Assemble the session report and open the print / Save-as-PDF dialog.
+   *
+   * The report needs the AI summary; if the doctor never opened the summary tab
+   * it is generated here first (a brief busy state), reusing whatever is already
+   * cached otherwise. A summary failure is non-fatal -- the prescription still
+   * prints with a "no summary" note and the confirmed medications.
+   */
+  const downloadReport = useCallback(async () => {
+    if (reportBusy || entries.length === 0) return
+    setReportBusy(true)
+    try {
+      let summaryText = summary
+      if (!summaryText) {
+        try {
+          const data = await summarize({ turns: entriesToTurns(entries) })
+          summaryText = data.summary
+          setSummary(data.summary)
+        } catch (err) {
+          console.warn('[report] summary unavailable:', err?.code || err)
+          summaryText = ''
+        }
+      }
+      const html = buildPrescriptionHTML({
+        summary: summaryText,
+        medications,
+        langLabel: `${getDisplayLabel(sourceLang)} ↔ ${getDisplayLabel(targetLang)}`,
+        generatedAt: new Date(),
+      })
+      if (!openPrintWindow(html)) {
+        console.warn('[report] print window was blocked by the browser')
+      }
+    } finally {
+      setReportBusy(false)
+    }
+  }, [reportBusy, entries, summary, medications, sourceLang, targetLang])
+
+  const saveReport = useCallback(() => {
+    window.open(VAULT_URL, '_blank', 'noopener,noreferrer')
+  }, [])
 
   /**
    * Record-until-Done: finalised speech segments accumulate for the whole
@@ -419,6 +473,10 @@ export default function App() {
       medicationModal={medicationModal}
       onConfirmMedicationModal={confirmMedicationModal}
       onDismissMedicationModal={dismissMedicationModal}
+      onDownloadReport={downloadReport}
+      onSaveReport={saveReport}
+      reportBusy={reportBusy}
+      canReport={entries.length > 0}
     />
   )
 }

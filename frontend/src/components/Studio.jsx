@@ -595,6 +595,10 @@ export default function Studio({
   medicationModal,
   onConfirmMedicationModal,
   onDismissMedicationModal,
+  onDownloadReport,
+  onSaveReport,
+  reportBusy,
+  canReport,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
@@ -861,6 +865,36 @@ export default function Studio({
                   onGenerate={onGenerateSummary}
                 />
               )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[13px] leading-relaxed text-slate-500">
+                Export the summary and confirmed medications as a prescription, or save it to your vault.
+              </p>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={onDownloadReport}
+                  disabled={!canReport || reportBusy}
+                  className="flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40"
+                >
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16h12" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {reportBusy ? 'Preparing…' : 'Download report'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onSaveReport}
+                  className="flex items-center gap-2 rounded-full border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+                >
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M5 3h8l3 3v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" strokeLinejoin="round" />
+                    <path d="M7 3v5h5M7 13h6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Save your report
+                </button>
+              </div>
             </div>
           </main>
 
