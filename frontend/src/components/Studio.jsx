@@ -21,7 +21,7 @@ function EcgLine() {
       <svg viewBox="0 0 1200 60" preserveAspectRatio="none" className="h-full w-full">
         <path
           d="M0 30 H360 l20 -18 l22 40 l26 -52 l20 30 H520 l16 -10 l14 20 l18 -28 l14 18 H1200"
-          fill="none" stroke="#136b5b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          fill="none" stroke="#1f8a3f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           strokeDasharray="1200" className="animate-ecg"
         />
       </svg>
@@ -64,7 +64,7 @@ function Sidebar({ onBack }) {
               type="button"
               className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50 ${i > 0 ? 'border-t border-slate-100' : ''}`}
             >
-              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${i === 0 ? 'bg-pine-600' : 'bg-slate-300'}`} />
+              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${i === 0 ? 'bg-brand-600' : 'bg-slate-300'}`} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-semibold text-slate-800">{item.title}</span>
@@ -82,7 +82,7 @@ function Sidebar({ onBack }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-pine-50 text-pine-600">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
                 <Shield className="h-4 w-4" />
               </span>
               <div>
@@ -93,7 +93,7 @@ function Sidebar({ onBack }) {
           </div>
           <button
             type="button"
-            className="mt-4 w-full rounded-full border border-pine-200 py-2 text-sm font-semibold text-pine-700 transition hover:bg-pine-50"
+            className="mt-4 w-full rounded-full border border-brand-200 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
             title="Provider seam: stub / mymemory / google_free / google / gemini"
           >
             Switch provider
@@ -106,7 +106,7 @@ function Sidebar({ onBack }) {
         <ul className="mt-3 space-y-2">
           {GUIDELINES.map((g) => (
             <li key={g} className="flex gap-2 text-[13px] leading-relaxed text-slate-600">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-pine-400" />
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-400" />
               {g}
             </li>
           ))}
@@ -116,12 +116,12 @@ function Sidebar({ onBack }) {
         </p>
       </div>
 
-      <div className="rounded-2xl bg-pine-50 p-4">
-        <div className="flex gap-3 text-pine-800">
-          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-pine-600" />
+      <div className="rounded-2xl bg-brand-50 p-4">
+        <div className="flex gap-3 text-brand-800">
+          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
           <div>
             <p className="text-sm font-semibold">Session audio is not stored.</p>
-            <p className="mt-0.5 text-[13px] text-pine-700/80">Transcripts stay on this device.</p>
+            <p className="mt-0.5 text-[13px] text-brand-700/80">Transcripts stay on this device.</p>
           </div>
         </div>
       </div>
@@ -177,20 +177,23 @@ function DomainPanel({ detected, confidence }) {
               <p className="mt-3 text-sm font-semibold text-slate-800">{domain.name}</p>
               {isDetected ? (
                 isConfirmed ? (
-                  <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-pine-600">
+                  <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand-600">
                     <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                       <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     confirmed
                   </p>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmed(domain.id)}
-                    className="mt-2 rounded-md bg-clay-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-clay-600"
-                  >
-                    Confirm
-                  </button>
+                  <>
+                    <p className="mt-0.5 font-mono text-[11px] font-medium text-clay-600">{confidence}% match</p>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmed(domain.id)}
+                      className="mt-2 rounded-md bg-clay-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-clay-600"
+                    >
+                      Confirm
+                    </button>
+                  </>
                 )
               ) : (
                 <p className="mt-1 text-xs text-slate-400">not detected</p>
@@ -198,16 +201,6 @@ function DomainPanel({ detected, confidence }) {
             </div>
           )
         })}
-      </div>
-
-      <div className="rounded-2xl border border-dashed border-pine-300 bg-pine-50/40 p-4 font-mono text-[12px] leading-relaxed text-pine-800">
-        <p className="text-pine-600">// system note</p>
-        <p className="mt-2 text-pine-800/90">
-          Mita reads the conversation, guesses the medical domain, and waits for you to confirm before it routes care.
-        </p>
-        <p className="mt-3 font-semibold text-pine-700">
-          Confidence · {detected ? `${confidence}%` : '—'}
-        </p>
       </div>
     </aside>
   )
@@ -235,7 +228,7 @@ function LanguageToggle({ sourceLang, targetLang, onChange }) {
         onClick={() => onChange({ sourceLang: 'en', targetLang: getOther('en') })}
         aria-pressed={sourceLang === 'en'}
         className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition ${
-          sourceLang === 'en' ? 'bg-pine-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+          sourceLang === 'en' ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
         English
@@ -244,7 +237,7 @@ function LanguageToggle({ sourceLang, targetLang, onChange }) {
         type="button"
         onClick={() => onChange({ sourceLang: targetLang, targetLang: sourceLang })}
         aria-label="Swap direction"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-pine-700"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-brand-700"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
           <path d="M4 7h12m0 0-3-3m3 3-3 3M16 13H4m0 0 3 3m-3-3 3-3" strokeLinecap="round" strokeLinejoin="round" />
@@ -255,7 +248,7 @@ function LanguageToggle({ sourceLang, targetLang, onChange }) {
         onClick={() => onChange({ sourceLang: 'bn', targetLang: getOther('bn') })}
         aria-pressed={sourceLang === 'bn'}
         className={`flex-1 rounded-full py-2.5 font-bn text-sm font-semibold transition ${
-          sourceLang === 'bn' ? 'bg-pine-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+          sourceLang === 'bn' ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
         বাংলা
@@ -287,7 +280,7 @@ function HistoryList({ entries }) {
               </p>
             </div>
             <div>
-              <p className="font-mono text-[11px] font-medium uppercase tracking-wide text-pine-600">
+              <p className="font-mono text-[11px] font-medium uppercase tracking-wide text-brand-600">
                 Mita · {getDisplayLabel(entry.targetLang)}
               </p>
               <p className={`${isBengali(entry.targetLang) ? 'font-bn text-bn' : 'text-[15px]'} text-slate-800`}>
@@ -355,11 +348,11 @@ export default function Studio({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-console">
+    <div className="min-h-[100dvh] bg-canvas">
       <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4 pb-4">
           <button type="button" onClick={onBack} className="flex items-center gap-3 text-left" title="Back to home">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pine-600 text-white">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white">
               <Shield />
             </span>
             <span>
@@ -371,7 +364,7 @@ export default function Studio({
             </span>
           </button>
 
-          <div className={`flex items-center gap-2 rounded-2xl border px-4 py-2 ${offline ? 'border-slate-200 bg-slate-50' : 'border-pine-200 bg-pine-50/60'}`}>
+          <div className={`flex items-center gap-2 rounded-2xl border px-4 py-2 ${offline ? 'border-slate-200 bg-slate-50' : 'border-brand-200 bg-brand-50/60'}`}>
             <span className={`h-2 w-2 rounded-full ${offline ? 'border-2 border-slate-400 bg-transparent' : 'animate-pulse-dot bg-clay-500'}`} />
             <span className="text-sm">
               <span className="font-semibold text-slate-800">{offline ? 'Offline' : 'Live session'}</span>
@@ -392,8 +385,8 @@ export default function Studio({
 
             <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.15em]">
               <span className="text-slate-400">Session · {clock}</span>
-              <span className="flex items-center gap-1.5 text-pine-600">
-                <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-pine-500" />
+              <span className="flex items-center gap-1.5 text-brand-600">
+                <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-brand-500" />
                 Translation live
               </span>
             </div>
@@ -450,7 +443,7 @@ export default function Studio({
                     aria-pressed={isListening}
                     aria-label={isListening ? 'Stop recording' : 'Start recording'}
                     className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-95 ${
-                      isListening ? 'bg-clay-500' : 'bg-pine-600 hover:bg-pine-700'
+                      isListening ? 'bg-clay-500' : 'bg-brand-600 hover:bg-brand-700'
                     }`}
                   >
                     {isListening && <span className="absolute inset-0 animate-ping rounded-full bg-clay-500/40" />}
@@ -472,7 +465,7 @@ export default function Studio({
                   <button
                     type="button"
                     onClick={submit}
-                    className="ml-auto flex items-center gap-1.5 rounded-full bg-pine-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-pine-700"
+                    className="ml-auto flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
                   >
                     Translate
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -485,21 +478,21 @@ export default function Studio({
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl bg-pine-50 p-4">
+            <div className="mt-4 rounded-2xl bg-brand-50 p-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-pine-700/70">Translation</span>
-                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-semibold uppercase text-pine-700">
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-brand-700/70">Translation</span>
+                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-semibold uppercase text-brand-700">
                   {getDisplayLabel(targetLang)}
                 </span>
               </div>
 
               <div className="min-h-[3rem]">
                 {isTranslating ? (
-                  <span className="inline-flex items-center gap-2 text-pine-700">
+                  <span className="inline-flex items-center gap-2 text-brand-700">
                     <span className="text-sm font-medium">Translating</span>
                     <span className="flex gap-1">
                       {[0, 150, 300].map((d) => (
-                        <span key={d} className="h-1.5 w-1.5 animate-pulse rounded-full bg-pine-500" style={{ animationDelay: `${d}ms` }} />
+                        <span key={d} className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" style={{ animationDelay: `${d}ms` }} />
                       ))}
                     </span>
                   </span>
@@ -527,7 +520,7 @@ export default function Studio({
                     type="button"
                     onClick={() => onSpeak(translationText)}
                     disabled={!hasVoice}
-                    className="flex items-center gap-1.5 text-xs font-medium text-pine-700 transition hover:text-pine-800 disabled:opacity-40"
+                    className="flex items-center gap-1.5 text-xs font-medium text-brand-700 transition hover:text-brand-800 disabled:opacity-40"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                       <path d="M4 8v4h3l4 3V5L7 8H4z" strokeLinejoin="round" />
@@ -535,7 +528,7 @@ export default function Studio({
                     </svg>
                     Play aloud
                   </button>
-                  <span className={`flex items-center gap-1 text-xs font-semibold ${verified ? 'text-pine-600' : 'text-clay-600'}`}>
+                  <span className={`flex items-center gap-1 text-xs font-semibold ${verified ? 'text-brand-600' : 'text-clay-600'}`}>
                     {verified ? (
                       <>
                         verified
@@ -561,7 +554,7 @@ export default function Studio({
                   type="button"
                   onClick={() => setTab(id)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    tab === id ? 'bg-pine-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    tab === id ? 'bg-brand-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
                   {label}

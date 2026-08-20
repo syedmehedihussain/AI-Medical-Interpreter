@@ -8,15 +8,17 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
   }
 
   body {
-    @apply bg-console text-slate-900 antialiased;
+    @apply bg-canvas text-slate-900 antialiased;
   }
 
   /* Every control reachable by Tab gets a visible focus ring (prd.md section 6). */
   :focus-visible {
-    @apply outline-none ring-2 ring-pine-600 ring-offset-2 ring-offset-console;
+    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-canvas;
   }
 }
 

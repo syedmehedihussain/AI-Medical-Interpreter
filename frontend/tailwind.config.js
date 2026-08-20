@@ -4,20 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Deep pine/teal green: the app's primary voice (home + console).
-        pine: {
-          50: '#eaf3f0',
-          100: '#d3e7e0',
-          200: '#a6cfc2',
-          300: '#6faf9d',
-          400: '#3d8d78',
-          500: '#1c7460',
-          600: '#136b5b',
-          700: '#0e5648',
-          800: '#0b4539',
-          900: '#08352c',
+        // Grass green: the app's primary voice (home + console).
+        brand: {
+          50: '#eefaf0',
+          100: '#d6f2dc',
+          200: '#aee4bb',
+          300: '#7ed092',
+          400: '#4fb86c',
+          500: '#2ea24f',
+          600: '#1f8a3f',
+          700: '#196f34',
+          800: '#175a2c',
+          900: '#144a26',
         },
-        // Coral/clay: the one warm accent (live pulse, record, detected domain).
+        // Coral/clay: the console's one warm accent (live pulse, record, detected).
         clay: {
           50: '#fdf0ea',
           100: '#fbdccf',
@@ -28,8 +28,8 @@ export default {
           600: '#c94e2c',
           700: '#a83e22',
         },
-        // Neutral page/console background.
-        console: '#f1f3f1',
+        // Warm off-white page background.
+        canvas: '#f5f8f4',
       },
       keyframes: {
         'rise-in': {
