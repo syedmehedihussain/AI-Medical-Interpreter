@@ -34,9 +34,15 @@ export function useAuth() {
     }
   }, [])
 
-  const signUp = useCallback(async (email, password) => {
+  // `profile` (full_name, date_of_birth) is stored in Supabase user_metadata via
+  // options.data -- no separate profiles table for the demo.
+  const signUp = useCallback(async (email, password, profile) => {
     if (!supabase) return { error: 'Sign-up is not available.' }
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: profile ? { data: profile } : undefined,
+    })
     // No session on success means the project requires email confirmation.
     return { error: error?.message ?? null, needsConfirmation: !error && !data?.session }
   }, [])

@@ -48,12 +48,17 @@ export default {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
           '50%': { opacity: '0.55', transform: 'scale(1.35)' },
         },
+        marquee: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'rise-in': 'rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
         float: 'float 9s ease-in-out infinite',
         ecg: 'ecg 3.5s linear infinite',
         'pulse-dot': 'pulse-dot 1.6s ease-in-out infinite',
+        marquee: 'marquee 32s linear infinite',
       },
       fontFamily: {
         // Inter paired with Noto Sans Bengali at a similar x-height (E-23).

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getDisplayLabel, isBengali } from '../lib/languages'
 import { messageForError } from '../lib/messages'
 import { DOMAINS, detectDomain } from '../lib/domains'
 
-// The interpreter console: history + model on the left, live translation in the
-// centre, domain detection on the right. Presentation only; App owns the wiring.
+// The interpreter console: a focused welcome/session panel in the centre, with
+// domain detection and medications in a slim right rail. Presentation only; App
+// owns the wiring.
 
 function Shield({ className = 'h-5 w-5' }) {
   return (
@@ -15,21 +16,6 @@ function Shield({ className = 'h-5 w-5' }) {
   )
 }
 
-function EcgLine() {
-  return (
-    <div className="relative h-10 w-full overflow-hidden" aria-hidden="true">
-      <svg viewBox="0 0 1200 60" preserveAspectRatio="none" className="h-full w-full">
-        <path
-          d="M0 30 H360 l20 -18 l22 40 l26 -52 l20 30 H520 l16 -10 l14 20 l18 -28 l14 18 H1200"
-          fill="none" stroke="#1f8a3f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          strokeDasharray="1200" className="animate-ecg"
-        />
-      </svg>
-      <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 animate-pulse-dot rounded-full bg-clay-500 ring-4 ring-clay-500/20" />
-    </div>
-  )
-}
-
 const DOMAIN_ICONS = {
   cardiology: 'M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 15.5 12 20 12 20z',
   neurology: 'M9 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5 3 3 0 0 0 2 4 3 3 0 0 0 5 1V4.5A2.5 2.5 0 0 0 9 4zm6 0a2.5 2.5 0 0 0-2 .5V17a3 3 0 0 0 5-1 3 3 0 0 0 2-4 3 3 0 0 0-1-5 3 3 0 0 0-4-3z',
@@ -37,107 +23,6 @@ const DOMAIN_ICONS = {
   general: 'M6 4v5a4 4 0 0 0 8 0V4m-4 12a4 4 0 0 0 4 4 3 3 0 0 0 3-3v-3',
   orthopedics: 'M8 8a2 2 0 1 1-2-2 2 2 0 0 1-1-1m3 3 8 8m0 0a2 2 0 1 0 2 2 2 2 0 0 0 1 1',
   ophthalmology: 'M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-}
-
-const SAMPLE_HISTORY = [
-  { title: 'Fever & chest pain', when: '09:14', pair: 'Sylheti → EN' },
-  { title: 'Prescription refill', when: 'Yesterday', pair: 'Bangla → EN' },
-  { title: 'Antenatal check-up', when: 'Aug 18', pair: 'Chatgaiya → EN' },
-]
-
-const GUIDELINES = [
-  'Prioritises clinical accuracy over fluency.',
-  'Flags idioms it cannot verify.',
-  'Never infers a diagnosis, only translates.',
-  'Confirms medical domain before routing.',
-]
-
-function Sidebar({ onBack }) {
-  return (
-    <aside className="flex flex-col gap-5">
-      <section>
-        <h2 className="mb-2 px-1 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">History</h2>
-        <div className="rounded-2xl border border-slate-200 bg-white p-2">
-          {SAMPLE_HISTORY.map((item, i) => (
-            <button
-              key={item.title}
-              type="button"
-              className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50 ${i > 0 ? 'border-t border-slate-100' : ''}`}
-            >
-              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${i === 0 ? 'bg-brand-600' : 'bg-slate-300'}`} />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-semibold text-slate-800">{item.title}</span>
-                  <span className="shrink-0 text-xs text-slate-400">{item.when}</span>
-                </span>
-                <span className="mt-0.5 block font-mono text-xs text-slate-400">{item.pair}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-2 px-1 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">Model</h2>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                <Shield className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Gemini 3.5 Flash-Lite</p>
-                <p className="font-mono text-xs text-slate-400">Provider · Google</p>
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="mt-4 w-full rounded-full border border-brand-200 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
-            title="Provider seam: stub / mymemory / google_free / google / gemini"
-          >
-            Switch provider
-          </button>
-        </div>
-      </section>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-800">Model details &amp; guideline</h3>
-        <ul className="mt-3 space-y-2">
-          {GUIDELINES.map((g) => (
-            <li key={g} className="flex gap-2 text-[13px] leading-relaxed text-slate-600">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-400" />
-              {g}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 border-t border-slate-100 pt-3 font-mono text-[11px] text-slate-400">
-          Model card last reviewed 12 Aug 2026
-        </p>
-      </div>
-
-      <div className="rounded-2xl bg-brand-50 p-4">
-        <div className="flex gap-3 text-brand-800">
-          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
-          <div>
-            <p className="text-sm font-semibold">Session audio is not stored.</p>
-            <p className="mt-0.5 text-[13px] text-brand-700/80">Transcripts stay on this device.</p>
-          </div>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onBack}
-        className="mt-auto flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-      >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Leave session
-      </button>
-    </aside>
-  )
 }
 
 function DomainPanel({ detected, confidence }) {
@@ -595,18 +480,6 @@ function SummaryPanel({ entries, summary, loading, error, onGenerate }) {
   )
 }
 
-function useSessionClock() {
-  const start = useRef(Date.now())
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start.current) / 1000)), 1000)
-    return () => clearInterval(id)
-  }, [])
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
-  const ss = String(elapsed % 60).padStart(2, '0')
-  return `${mm}:${ss}`
-}
-
 export default function Studio({
   sourceLang,
   targetLang,
@@ -656,7 +529,9 @@ export default function Studio({
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
-  const clock = useSessionClock()
+  // The greeting shows once; "Start translating" swaps the panel into the live
+  // interpreter and never comes back for the rest of the session.
+  const [started, setStarted] = useState(false)
 
   // Opening the summary tab generates the note once, then leaves it cached.
   // Guarded so it does not re-fire while loading, after success, or after an
@@ -741,44 +616,76 @@ export default function Studio({
                 </button>
               )
             )}
+
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Leave session
+            </button>
           </div>
         </header>
 
         <div className="border-t border-slate-200" />
 
-        <div className="grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[264px_minmax(0,1fr)_320px]">
-          <Sidebar onBack={onBack} />
-
+        <div className={started ? 'grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_320px]' : 'mx-auto max-w-2xl pt-6'}>
           <main className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-            <EcgLine />
+            {!started ? (
+              <div className="py-6 sm:py-10">
+                <h1 className="font-serif text-4xl font-semibold text-slate-900 sm:text-5xl">
+                  Hello, I&rsquo;m Mita
+                </h1>
+                <p className="mt-2 text-lg text-slate-500">your medical interpreter, on call.</p>
+                <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-slate-500">
+                  Speak or type in English or Bangla, I&rsquo;ll render it in the other language right away.
+                </p>
 
-            <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.15em]">
-              <span className="text-slate-400">Session · {clock}</span>
-              <span className={`flex items-center gap-1.5 ${isListening ? 'text-clay-600' : 'text-brand-600'}`}>
-                <span className={`h-1.5 w-1.5 animate-pulse-dot rounded-full ${isListening ? 'bg-clay-500' : 'bg-brand-500'}`} />
-                {isListening ? 'Recording' : 'Translation live'}
-              </span>
-            </div>
+                <p className="mb-2 mt-8 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
+                  Who&rsquo;s speaking
+                </p>
+                <SpeakerSwitch
+                  doctorLang={doctorLang}
+                  patientLang={patientLang}
+                  activeSpeaker={activeSpeaker}
+                  onSpeakerChange={onSpeakerChange}
+                  onDoctorLangChange={onDoctorLangChange}
+                  onPatientLangChange={onPatientLangChange}
+                />
 
-            <h1 className="mt-4 font-serif text-4xl font-semibold text-slate-900 sm:text-5xl">
-              Hello, I&rsquo;m Mita
-            </h1>
-            <p className="mt-2 text-lg text-slate-500">your medical interpreter, on call.</p>
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-slate-500">
-              Speak or type in English or Bangla, I&rsquo;ll render it in the other language right away.
-            </p>
-
-            <p className="mb-2 mt-6 font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
-              Who&rsquo;s speaking
-            </p>
-            <SpeakerSwitch
-              doctorLang={doctorLang}
-              patientLang={patientLang}
-              activeSpeaker={activeSpeaker}
-              onSpeakerChange={onSpeakerChange}
-              onDoctorLangChange={onDoctorLangChange}
-              onPatientLangChange={onPatientLangChange}
-            />
+                <button
+                  type="button"
+                  onClick={() => setStarted(true)}
+                  className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-brand-700 active:scale-[.99]"
+                >
+                  Start translating
+                  <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M4 10h12m0 0-5-5m5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
+                    Who&rsquo;s speaking
+                  </p>
+                  <span className={`flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.15em] ${isListening ? 'text-clay-600' : 'text-brand-600'}`}>
+                    <span className={`h-1.5 w-1.5 animate-pulse-dot rounded-full ${isListening ? 'bg-clay-500' : 'bg-brand-500'}`} />
+                    {isListening ? 'Recording' : 'Translation live'}
+                  </span>
+                </div>
+                <SpeakerSwitch
+                  doctorLang={doctorLang}
+                  patientLang={patientLang}
+                  activeSpeaker={activeSpeaker}
+                  onSpeakerChange={onSpeakerChange}
+                  onDoctorLangChange={onDoctorLangChange}
+                  onPatientLangChange={onPatientLangChange}
+                />
 
             <div className="mt-5 rounded-2xl border border-slate-200 p-4">
               <div className="mb-2 flex items-center justify-between">
@@ -1012,16 +919,20 @@ export default function Studio({
                 )}
               </div>
             </div>
+              </>
+            )}
           </main>
 
-          <div className="flex flex-col gap-6">
-            <DomainPanel detected={domainHint?.id ?? null} confidence={domainHint?.confidence ?? 0} />
-            <MedicationsPanel
-              medications={medications}
-              onEdit={onStartEditMedication}
-              onRemove={onRemoveMedication}
-            />
-          </div>
+          {started && (
+            <div className="flex flex-col gap-6">
+              <DomainPanel detected={domainHint?.id ?? null} confidence={domainHint?.confidence ?? 0} />
+              <MedicationsPanel
+                medications={medications}
+                onEdit={onStartEditMedication}
+                onRemove={onRemoveMedication}
+              />
+            </div>
+          )}
         </div>
       </div>
 

@@ -9,10 +9,12 @@ import { useState } from 'react'
  * watching the auth state; sign-up that needs email confirmation shows a note
  * here instead.
  */
-export default function AuthModal({ onClose, onSignIn, onSignUp }) {
-  const [mode, setMode] = useState('login')
+export default function AuthModal({ onClose, onSignIn, onSignUp, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [dob, setDob] = useState('')
   const [error, setError] = useState(null)
   const [note, setNote] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -28,10 +30,14 @@ export default function AuthModal({ onClose, onSignIn, onSignUp }) {
       setError('Enter your email and password.')
       return
     }
+    if (!isLogin && (!fullName.trim() || !dob)) {
+      setError('Enter your full name and date of birth.')
+      return
+    }
     setBusy(true)
     const result = isLogin
       ? await onSignIn(email.trim(), password)
-      : await onSignUp(email.trim(), password)
+      : await onSignUp(email.trim(), password, { full_name: fullName.trim(), date_of_birth: dob })
     setBusy(false)
     if (result?.error) {
       setError(result.error)
@@ -63,6 +69,31 @@ export default function AuthModal({ onClose, onSignIn, onSignUp }) {
         </div>
 
         <form onSubmit={submit} className="space-y-3">
+          {!isLogin && (
+            <>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">Full name</span>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">Date of birth</span>
+                <input
+                  type="date"
+                  autoComplete="bday"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                />
+              </label>
+            </>
+          )}
           <label className="block">
             <span className="mb-1 block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">Email</span>
             <input

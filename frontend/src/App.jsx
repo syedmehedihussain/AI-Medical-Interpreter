@@ -3,6 +3,7 @@ import { extractMedications, getHealth, saveReport, summarize } from './api/clie
 import AuthModal from './components/AuthModal'
 import Home from './components/Home'
 import MyReports from './components/MyReports'
+import Register from './components/Register'
 import Studio from './components/Studio'
 import { useAuth } from './hooks/useAuth'
 import { useSpeak } from './hooks/useSpeak'
@@ -401,7 +402,8 @@ export default function App() {
    */
   const saveReportToAccount = useCallback(async () => {
     if (!auth.user) {
-      setAuthOpen(true)
+      // Guests (incl. demo) can't save -- send them to sign up / log in.
+      setView('register')
       return
     }
     if (entries.length === 0 || saveState === 'saving') return
@@ -438,7 +440,7 @@ export default function App() {
       const token = await auth.getToken()
       if (!token) {
         setSaveState('idle')
-        setAuthOpen(true)
+        setView('register')
         return
       }
       await saveReport({ report, token })
@@ -455,6 +457,12 @@ export default function App() {
   useEffect(() => {
     if (auth.user) setAuthOpen(false)
   }, [auth.user])
+
+  // Logging in (or confirming) while on the registration page sends the user
+  // into the tool -- they came here to get in, not to linger on the form.
+  useEffect(() => {
+    if (auth.user && view === 'register') setView('tool')
+  }, [auth.user, view])
 
   /**
    * Record-until-Done: finalised speech segments accumulate for the whole
@@ -538,13 +546,44 @@ export default function App() {
 
   const offline = backendReachable === false
 
-  if (view === 'home') {
-    return <Home onStart={() => setView('tool')} />
-  }
-
   const authModal = authOpen ? (
     <AuthModal onClose={() => setAuthOpen(false)} onSignIn={auth.signIn} onSignUp={auth.signUp} />
   ) : null
+
+  // "Get started": guests go to the registration page; a signed-in user skips
+  // straight into the tool rather than being asked to register again.
+  const getStarted = () => setView(auth.user ? 'tool' : 'register')
+
+  if (view === 'home') {
+    return (
+      <>
+        <Home
+          onGetStarted={getStarted}
+          authConfigured={auth.configured}
+          accountEmail={auth.user?.email ?? null}
+          onOpenAuth={() => setAuthOpen(true)}
+          onLogout={auth.signOut}
+          onOpenReports={() => setView('reports')}
+        />
+        {authModal}
+      </>
+    )
+  }
+
+  if (view === 'register') {
+    return (
+      <>
+        <Register
+          onSignUp={auth.signUp}
+          onRegistered={() => setView('tool')}
+          onDemo={() => setView('tool')}
+          onLogin={() => setAuthOpen(true)}
+          onBack={() => setView('home')}
+        />
+        {authModal}
+      </>
+    )
+  }
 
   // The My reports screen is only reachable signed in; if the session ends
   // while it is open, fall back to the session view.
