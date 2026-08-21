@@ -27,6 +27,26 @@ logger = logging.getLogger(__name__)
 # in prose or a ```json fence. DOTALL so the array can span newlines.
 _ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 
+# Quotes bare object keys: `name:` -> `"name":`. The model sometimes emits
+# JS-object literals rather than strict JSON.
+_BARE_KEY_RE = re.compile(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)')
+# Drops a trailing comma before a closing brace/bracket.
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+
+
+def _loads_lenient(text: str):
+    """json.loads, retrying once after repairing common near-JSON slips.
+
+    Gemini occasionally returns a JavaScript-style array with unquoted keys or a
+    trailing comma. Rather than lose a real extraction, quote the bare keys and
+    strip trailing commas, then parse again.
+    """
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        repaired = _TRAILING_COMMA_RE.sub(r"\1", _BARE_KEY_RE.sub(r'\1"\2"\3', text))
+        return json.loads(repaired)
+
 
 def build_extraction_prompt(text: str) -> str:
     """The instruction sent to the model for one turn of conversation."""
@@ -65,7 +85,7 @@ def parse_medications(raw: str) -> list[Medication]:
     if not match:
         return []
     try:
-        items = json.loads(match.group(0))
+        items = _loads_lenient(match.group(0))
     except (json.JSONDecodeError, ValueError):
         logger.warning("medication extraction returned non-JSON: %r", raw[:200])
         return []

@@ -28,6 +28,22 @@ logger = logging.getLogger(__name__)
 # minted for a different purpose (e.g. refresh tokens).
 _JWT_AUDIENCE = "authenticated"
 
+# Supabase can sign tokens two ways: the legacy shared HS256 secret, or (the
+# default for newer projects) an asymmetric key (ES256/RS256) published at the
+# project's JWKS endpoint. We support both. The JWKS client is created lazily
+# and cached -- it fetches and caches the public keys, so verification after the
+# first token is a local operation.
+_ASYMMETRIC_ALGS = ("ES256", "RS256")
+_jwks_client = None
+
+
+def _get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None:
+        base = (get_settings().supabase_url or "").rstrip("/")
+        _jwks_client = jwt.PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json")
+    return _jwks_client
+
 
 def make_request_id() -> str:
     """Mint a short id for one request.
@@ -74,17 +90,28 @@ ANONYMOUS_USER = CurrentUser(id="anonymous", role="operator", is_anonymous=True)
 def _decode_supabase_token(token: str) -> CurrentUser | None:
     """Verify a Supabase access token; return the user, or None if it is bad.
 
-    Returns None (rather than raising) for every failure -- unconfigured secret,
-    expired token, wrong audience, malformed value -- because the caller treats a
-    bad token the same as no token: an anonymous request. The reason is logged at
+    Handles both signing schemes: an ES256/RS256 token is verified against the
+    project's JWKS public key; an HS256 token against the shared JWT secret.
+    Returns None (rather than raising) for every failure -- unconfigured, expired,
+    wrong audience, unknown key, malformed -- because the caller treats a bad
+    token the same as no token: an anonymous request. The reason is logged at
     debug level for diagnosis, never surfaced.
     """
-    secret = (get_settings().supabase_jwt_secret or "").strip()
-    if not secret:
-        return None
     try:
-        claims = jwt.decode(token, secret, algorithms=["HS256"], audience=_JWT_AUDIENCE)
-    except jwt.PyJWTError as exc:
+        alg = jwt.get_unverified_header(token).get("alg")
+        if alg in _ASYMMETRIC_ALGS:
+            key = _get_jwks_client().get_signing_key_from_jwt(token).key
+            algorithms = [alg]
+        elif alg == "HS256":
+            key = (get_settings().supabase_jwt_secret or "").strip()
+            if not key:
+                return None
+            algorithms = ["HS256"]
+        else:
+            logger.debug("rejected supabase token: unsupported alg %r", alg)
+            return None
+        claims = jwt.decode(token, key, algorithms=algorithms, audience=_JWT_AUDIENCE)
+    except Exception as exc:  # PyJWT errors, plus JWKS fetch/parse failures.
         logger.debug("rejected supabase token: %s", exc)
         return None
 

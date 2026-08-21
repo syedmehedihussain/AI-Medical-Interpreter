@@ -119,7 +119,7 @@ function ReportDetail({ report, onBack, onDownload, onDelete }) {
  * detail with the dialogue transcript, summary, and medications, and a
  * re-download of the prescription PDF.
  */
-export default function MyReports({ token, onBack }) {
+export default function MyReports({ getToken, onBack }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -130,6 +130,7 @@ export default function MyReports({ token, onBack }) {
     setLoading(true)
     setError(null)
     try {
+      const token = await getToken()
       const data = await listReports({ token })
       setReports(data.reports ?? [])
     } catch (err) {
@@ -137,7 +138,7 @@ export default function MyReports({ token, onBack }) {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [getToken])
 
   useEffect(() => {
     refresh()
@@ -146,6 +147,7 @@ export default function MyReports({ token, onBack }) {
   const open = useCallback(async (id) => {
     setDetailLoading(true)
     try {
+      const token = await getToken()
       const data = await getReport({ id, token })
       setSelected(data)
     } catch (err) {
@@ -153,7 +155,7 @@ export default function MyReports({ token, onBack }) {
     } finally {
       setDetailLoading(false)
     }
-  }, [token])
+  }, [getToken])
 
   const download = useCallback((report) => {
     const [a, b] = (report.language_pair || '').split('-')
@@ -169,13 +171,14 @@ export default function MyReports({ token, onBack }) {
 
   const remove = useCallback(async (id) => {
     try {
+      const token = await getToken()
       await deleteReport({ id, token })
       setSelected(null)
       await refresh()
     } catch (err) {
       setError(err)
     }
-  }, [token, refresh])
+  }, [getToken, refresh])
 
   return (
     <div className="min-h-[100dvh] bg-canvas">

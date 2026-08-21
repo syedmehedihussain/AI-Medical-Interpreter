@@ -435,7 +435,13 @@ export default function App() {
           timing: m.timing,
         })),
       }
-      await saveReport({ report, token: auth.accessToken })
+      const token = await auth.getToken()
+      if (!token) {
+        setSaveState('idle')
+        setAuthOpen(true)
+        return
+      }
+      await saveReport({ report, token })
       setSaveState('saved')
       setTimeout(() => setSaveState('idle'), 2500)
     } catch (err) {
@@ -443,7 +449,7 @@ export default function App() {
       setSaveState('error')
       setTimeout(() => setSaveState('idle'), 2500)
     }
-  }, [auth.user, auth.accessToken, entries, saveState, summary, medications, doctorLang, patientLang])
+  }, [auth.user, auth.getToken, entries, saveState, summary, medications, doctorLang, patientLang])
 
   // Close the auth modal once a session exists (login or confirmed sign-up).
   useEffect(() => {
@@ -545,7 +551,7 @@ export default function App() {
   if (view === 'reports' && auth.user) {
     return (
       <>
-        <MyReports token={auth.accessToken} onBack={() => setView('tool')} />
+        <MyReports getToken={auth.getToken} onBack={() => setView('tool')} />
         {authModal}
       </>
     )

@@ -52,11 +52,33 @@ export function useAuth() {
     await supabase.auth.signOut()
   }, [])
 
+  /**
+   * A fresh access token for an authed API call.
+   *
+   * The token cached in state can expire while the tab sits idle, so callers
+   * should fetch one right before a request rather than reuse the prop. This
+   * reads the current session and refreshes it when the token is within 30s of
+   * expiry, so requests never go out with a stale token.
+   */
+  const getToken = useCallback(async () => {
+    if (!supabase) return null
+    const { data } = await supabase.auth.getSession()
+    let current = data.session
+    if (!current) return null
+    const now = Math.floor(Date.now() / 1000)
+    if (current.expires_at && current.expires_at <= now + 30) {
+      const { data: refreshed } = await supabase.auth.refreshSession()
+      current = refreshed.session ?? current
+    }
+    return current?.access_token ?? null
+  }, [])
+
   return {
     configured: isAuthConfigured,
     loading,
     user: session?.user ?? null,
     accessToken: session?.access_token ?? null,
+    getToken,
     signUp,
     signIn,
     signOut,
