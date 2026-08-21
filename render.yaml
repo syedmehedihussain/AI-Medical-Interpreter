@@ -28,6 +28,17 @@ services:
       # preview URLs). Entered in the dashboard.
       - key: ALLOWED_ORIGINS
         sync: false
+      # Supabase accounts + saved reports (v0.2). All secrets, entered in the
+      # Render dashboard. Leave them blank to run the deploy guests-only.
+      #   SUPABASE_URL               Project URL, https://<ref>.supabase.co
+      #   SUPABASE_SERVICE_ROLE_KEY  service_role secret (backend only)
+      #   SUPABASE_JWT_SECRET        JWT secret (HS256 fallback verification)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
       # Matches local dev. If Render rejects it, drop this line to use the
       # platform default Python.
       - key: PYTHON_VERSION
