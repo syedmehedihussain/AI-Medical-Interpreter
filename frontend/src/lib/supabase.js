@@ -13,13 +13,37 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Trim to survive copy-paste whitespace in dashboard env vars (Vercel/Render).
+const url = import.meta.env.VITE_SUPABASE_URL?.trim()
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
 
-export const isAuthConfigured = Boolean(url && anonKey)
+// A present-but-malformed URL still makes createClient THROW, which would crash
+// the whole React tree at import time (blank page). Guard the shape ourselves so
+// a bad env var degrades to guest-only instead of white-screening.
+const hasValidUrl = Boolean(url && /^https?:\/\//i.test(url))
 
-export const supabase = isAuthConfigured
-  ? createClient(url, anonKey, {
+export const isAuthConfigured = hasValidUrl && Boolean(anonKey)
+
+function createSupabaseClient() {
+  if (!isAuthConfigured) {
+    if (url && !hasValidUrl) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[supabase] VITE_SUPABASE_URL is set but not a valid http(s) URL: "${url}". ` +
+          'Running guest-only. Fix the env var (include the https:// protocol).',
+      )
+    }
+    return null
+  }
+  try {
+    return createClient(url, anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     })
-  : null
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[supabase] Failed to init client, running guest-only:', err)
+    return null
+  }
+}
+
+export const supabase = createSupabaseClient()
