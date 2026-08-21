@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import AccountMenu from './AccountMenu'
 import { getDisplayLabel, isBengali } from '../lib/languages'
 import { messageForError } from '../lib/messages'
 import { DOMAINS, detectDomain } from '../lib/domains'
@@ -522,10 +523,13 @@ export default function Studio({
   canReport,
   saveState,
   authConfigured,
+  accountName,
   accountEmail,
   onOpenAuth,
   onLogout,
   onOpenReports,
+  onOpenProfile,
+  onOpenSettings,
 }) {
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState('history')
@@ -587,25 +591,14 @@ export default function Studio({
 
             {authConfigured && (
               accountEmail ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onOpenReports}
-                    className="rounded-full border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
-                  >
-                    My reports
-                  </button>
-                  <span className="hidden max-w-[160px] truncate text-xs text-slate-500 sm:inline" title={accountEmail}>
-                    {accountEmail}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="rounded-full px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                  >
-                    Log out
-                  </button>
-                </div>
+                <AccountMenu
+                  name={accountName}
+                  email={accountEmail}
+                  onProfile={onOpenProfile}
+                  onSettings={onOpenSettings}
+                  onReports={onOpenReports}
+                  onLogout={onLogout}
+                />
               ) : (
                 <button
                   type="button"

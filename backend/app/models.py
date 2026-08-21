@@ -384,6 +384,13 @@ class ReportsListData(BaseModel):
     reports: list[ReportListItem] = Field(default_factory=list)
 
 
+class AccountDeletedData(BaseModel):
+    """The "data" object of DELETE /api/account."""
+
+    deleted: bool = True
+    reports_removed: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Internal provider result
 # ---------------------------------------------------------------------------

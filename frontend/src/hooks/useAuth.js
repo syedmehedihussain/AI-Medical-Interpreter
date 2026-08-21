@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { deleteAccount as apiDeleteAccount } from '../api/client'
 import { isAuthConfigured, supabase } from '../lib/supabase'
 
 /**
@@ -58,6 +59,39 @@ export function useAuth() {
     await supabase.auth.signOut()
   }, [])
 
+  /** Update profile fields (full_name, date_of_birth) in user_metadata. */
+  const updateProfile = useCallback(async (data) => {
+    if (!supabase) return { error: 'Not available.' }
+    const { error } = await supabase.auth.updateUser({ data })
+    return { error: error?.message ?? null }
+  }, [])
+
+  /** Change the account password for the signed-in user. */
+  const updatePassword = useCallback(async (password) => {
+    if (!supabase) return { error: 'Not available.' }
+    const { error } = await supabase.auth.updateUser({ password })
+    return { error: error?.message ?? null }
+  }, [])
+
+  /**
+   * Permanently delete the account (server-side) then sign out locally. The
+   * backend removes the user and their reports; we clear the local session so
+   * the app drops back to guest state.
+   */
+  const deleteAccount = useCallback(async () => {
+    if (!supabase) return { error: 'Not available.' }
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) return { error: 'You are not signed in.' }
+    try {
+      await apiDeleteAccount({ token })
+    } catch (err) {
+      return { error: err?.message || 'Could not delete your account. Try again.' }
+    }
+    await supabase.auth.signOut()
+    return { error: null }
+  }, [])
+
   /**
    * A fresh access token for an authed API call.
    *
@@ -88,5 +122,8 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
+    updateProfile,
+    updatePassword,
+    deleteAccount,
   }
 }

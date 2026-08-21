@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { extractMedications, getHealth, saveReport, summarize } from './api/client'
 import AuthModal from './components/AuthModal'
+import About from './components/About'
+import Blog from './components/Blog'
+import Help from './components/Help'
 import Home from './components/Home'
+import HowWeBuilt from './components/HowWeBuilt'
 import MyReports from './components/MyReports'
+import Onboarding from './components/Onboarding'
+import Profile from './components/Profile'
 import Register from './components/Register'
+import Settings from './components/Settings'
 import Studio from './components/Studio'
 import { useAuth } from './hooks/useAuth'
 import { useSpeak } from './hooks/useSpeak'
@@ -13,6 +20,7 @@ import { chunkBySentence } from './lib/chunk'
 import { getDisplayLabel } from './lib/languages'
 import { buildPrescriptionHTML, openPrintWindow } from './lib/report'
 import { DEFAULT_SOURCE, DEFAULT_TARGET, getLanguage, getOther } from './lib/languages'
+import { hasOnboarded, loadReduceMotion, markOnboarded } from './lib/prefs'
 
 const ROLES_KEY = 'ami.roles'
 const AUTOPLAY_KEY = 'ami.autoplay'
@@ -89,7 +97,7 @@ export default function App() {
   const sourceLang = activeSpeaker === 'doctor' ? doctorLang : patientLang
   const targetLang = activeSpeaker === 'doctor' ? patientLang : doctorLang
   const [backendReachable, setBackendReachable] = useState(null)
-  const [autoplay] = useState(loadAutoplay)
+  const [autoplay, setAutoplay] = useState(loadAutoplay)
   const [entries, setEntries] = useState([])
   const [lastFinalText, setLastFinalText] = useState('')
   // The utterance being translated. Cleared on success; kept on error for retry.
@@ -459,9 +467,9 @@ export default function App() {
   }, [auth.user])
 
   // Logging in (or confirming) while on the registration page sends the user
-  // into the tool -- they came here to get in, not to linger on the form.
+  // onward -- first-timers through onboarding, everyone else into the tool.
   useEffect(() => {
-    if (auth.user && view === 'register') setView('tool')
+    if (auth.user && view === 'register') setView(hasOnboarded() ? 'tool' : 'onboarding')
   }, [auth.user, view])
 
   /**
@@ -553,6 +561,18 @@ export default function App() {
   // "Get started": guests go to the registration page; a signed-in user skips
   // straight into the tool rather than being asked to register again.
   const getStarted = () => setView(auth.user ? 'tool' : 'register')
+  // After sign-up / login: first-timers see onboarding once, then the tool.
+  const enterAfterAuth = () => setView(hasOnboarded() ? 'tool' : 'onboarding')
+
+  // Account-menu destinations, shared by the Home and Studio headers.
+  const accountNav = {
+    accountName: auth.user?.user_metadata?.full_name ?? null,
+    accountEmail: auth.user?.email ?? null,
+    onOpenProfile: () => setView('profile'),
+    onOpenSettings: () => setView('settings'),
+    onOpenReports: () => setView('reports'),
+    onLogout: auth.signOut,
+  }
 
   if (view === 'home') {
     return (
@@ -560,14 +580,26 @@ export default function App() {
         <Home
           onGetStarted={getStarted}
           authConfigured={auth.configured}
-          accountEmail={auth.user?.email ?? null}
           onOpenAuth={() => setAuthOpen(true)}
-          onLogout={auth.signOut}
-          onOpenReports={() => setView('reports')}
+          onOpenHelp={() => setView('help')}
+          onOpenResource={(id) => setView(id)}
+          {...accountNav}
         />
         {authModal}
       </>
     )
+  }
+
+  if (view === 'blog') {
+    return <Blog onHome={() => setView('home')} onBack={() => setView('home')} onGetStarted={getStarted} />
+  }
+
+  if (view === 'about') {
+    return <About onHome={() => setView('home')} onBack={() => setView('home')} />
+  }
+
+  if (view === 'howwebuilt') {
+    return <HowWeBuilt onHome={() => setView('home')} onBack={() => setView('home')} onGetStarted={getStarted} />
   }
 
   if (view === 'register') {
@@ -575,13 +607,73 @@ export default function App() {
       <>
         <Register
           onSignUp={auth.signUp}
-          onRegistered={() => setView('tool')}
+          onRegistered={enterAfterAuth}
           onDemo={() => setView('tool')}
           onLogin={() => setAuthOpen(true)}
           onBack={() => setView('home')}
         />
         {authModal}
       </>
+    )
+  }
+
+  if (view === 'onboarding') {
+    return (
+      <Onboarding
+        doctorLang={doctorLang}
+        patientLang={patientLang}
+        activeSpeaker={activeSpeaker}
+        onSpeakerChange={changeSpeaker}
+        onDoctorLangChange={changeDoctorLang}
+        onPatientLangChange={changePatientLang}
+        onDone={() => {
+          markOnboarded()
+          setView('tool')
+        }}
+      />
+    )
+  }
+
+  if (view === 'help') {
+    return <Help onHome={() => setView('home')} onBack={() => setView('tool')} onGetStarted={getStarted} />
+  }
+
+  if (view === 'settings') {
+    return (
+      <Settings
+        doctorLang={doctorLang}
+        patientLang={patientLang}
+        activeSpeaker={activeSpeaker}
+        onDoctorLangChange={changeDoctorLang}
+        onPatientLangChange={changePatientLang}
+        onSpeakerChange={changeSpeaker}
+        autoplay={autoplay}
+        onAutoplayChange={setAutoplay}
+        reduceMotion={loadReduceMotion()}
+        onHome={() => setView('home')}
+        onBack={() => setView('tool')}
+      />
+    )
+  }
+
+  if (view === 'profile' && auth.user) {
+    return (
+      <Profile
+        name={auth.user.user_metadata?.full_name ?? ''}
+        email={auth.user.email ?? ''}
+        dob={auth.user.user_metadata?.date_of_birth ?? ''}
+        getToken={auth.getToken}
+        onSaveProfile={auth.updateProfile}
+        onChangePassword={auth.updatePassword}
+        onDeleteAccount={async () => {
+          const result = await auth.deleteAccount()
+          if (!result.error) setView('home')
+          return result
+        }}
+        onReports={() => setView('reports')}
+        onHome={() => setView('home')}
+        onBack={() => setView('tool')}
+      />
     )
   }
 
@@ -642,10 +734,8 @@ export default function App() {
       canReport={entries.length > 0}
       saveState={saveState}
       authConfigured={auth.configured}
-      accountEmail={auth.user?.email ?? null}
       onOpenAuth={() => setAuthOpen(true)}
-      onLogout={auth.signOut}
-      onOpenReports={() => setView('reports')}
+      {...accountNav}
     />
     {authModal}
     </>

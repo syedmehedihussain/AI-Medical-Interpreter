@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import AccountMenu from './AccountMenu'
 import { Reveal, Stagger, StaggerItem } from './motion'
 
 const FEATURES = [
@@ -69,9 +70,9 @@ const FAQS = [
 ]
 
 const RESOURCES = [
-  { label: 'Blog', hint: 'Notes and updates' },
-  { label: 'About us', hint: 'The team behind it' },
-  { label: 'How we built it', hint: 'Architecture & decisions' },
+  { id: 'blog', label: 'Blog', hint: 'Language barriers in care' },
+  { id: 'about', label: 'About', hint: 'Who built this' },
+  { id: 'howwebuilt', label: 'How we built it', hint: 'The build, end to end' },
 ]
 
 // Honest capability pills for the moving trust strip -- no fabricated clients.
@@ -100,7 +101,7 @@ function Logo() {
   )
 }
 
-function ResourceMenu() {
+function ResourceMenu({ onSelect }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -132,7 +133,10 @@ function ResourceMenu() {
             <button
               key={r.label}
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false)
+                onSelect?.(r.id)
+              }}
               className="flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left transition hover:bg-slate-50"
             >
               <span className="text-sm font-semibold text-slate-800">{r.label}</span>
@@ -145,7 +149,19 @@ function ResourceMenu() {
   )
 }
 
-function Header({ onGetStarted, authConfigured, accountEmail, onOpenAuth, onLogout, onOpenReports }) {
+function Header({
+  onGetStarted,
+  authConfigured,
+  accountName,
+  accountEmail,
+  onOpenAuth,
+  onLogout,
+  onOpenReports,
+  onOpenProfile,
+  onOpenSettings,
+  onOpenHelp,
+  onOpenResource,
+}) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-canvas/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5 sm:px-10">
@@ -153,29 +169,20 @@ function Header({ onGetStarted, authConfigured, accountEmail, onOpenAuth, onLogo
         <nav className="hidden items-center gap-7 md:flex">
           <a href="#use-cases" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">Use cases</a>
           <a href="#docs" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">Docs</a>
-          <a href="#faq" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">FAQ</a>
-          <ResourceMenu />
+          <button type="button" onClick={onOpenHelp} className="text-sm font-medium text-slate-600 transition hover:text-slate-900">Help</button>
+          <ResourceMenu onSelect={onOpenResource} />
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           {authConfigured && (
             accountEmail ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onOpenReports}
-                  className="hidden rounded-full border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 sm:inline-block"
-                >
-                  My reports
-                </button>
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="rounded-full px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                  title={accountEmail}
-                >
-                  Log out
-                </button>
-              </>
+              <AccountMenu
+                name={accountName}
+                email={accountEmail}
+                onProfile={onOpenProfile}
+                onSettings={onOpenSettings}
+                onReports={onOpenReports}
+                onLogout={onLogout}
+              />
             ) : (
               <button
                 type="button"
@@ -242,16 +249,33 @@ function SectionHeading({ eyebrow, title, children }) {
   )
 }
 
-export default function Home({ onGetStarted, authConfigured, accountEmail, onOpenAuth, onLogout, onOpenReports }) {
+export default function Home({
+  onGetStarted,
+  authConfigured,
+  accountName,
+  accountEmail,
+  onOpenAuth,
+  onLogout,
+  onOpenReports,
+  onOpenProfile,
+  onOpenSettings,
+  onOpenHelp,
+  onOpenResource,
+}) {
   return (
     <div className="relative min-h-screen">
       <Header
         onGetStarted={onGetStarted}
         authConfigured={authConfigured}
+        accountName={accountName}
         accountEmail={accountEmail}
         onOpenAuth={onOpenAuth}
         onLogout={onLogout}
         onOpenReports={onOpenReports}
+        onOpenProfile={onOpenProfile}
+        onOpenSettings={onOpenSettings}
+        onOpenHelp={onOpenHelp}
+        onOpenResource={onOpenResource}
       />
 
       <div className="grain relative overflow-hidden">

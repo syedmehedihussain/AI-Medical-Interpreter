@@ -169,6 +169,14 @@ export function deleteReport({ id, token }) {
   return request(`/api/reports/${id}`, { method: 'DELETE', token })
 }
 
+/**
+ * Permanently delete the signed-in user's account and all their reports.
+ * Server-side because Supabase can't self-delete a user from the browser.
+ */
+export function deleteAccount({ token }) {
+  return request('/api/account', { method: 'DELETE', token })
+}
+
 export function translate({ text, sourceLang, targetLang, context = 'general', signal }) {
   return request('/api/translate/text', {
     method: 'POST',
