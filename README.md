@@ -353,10 +353,11 @@ Two rules worth knowing before editing: `frontend/src/api/client.js` is the only
 
 ## Documentation
 
-The full **Software Requirements Specification** (elicitation, analysis, and the complete SRS) lives in `../SRSfinal/`. The engineering companion docs are in [`docs/`](docs/):
+The full **Software Requirements Specification** (elicitation, analysis, and the complete SRS) is in [`docs/srs.md`](docs/srs.md) (the source `.docx`/PDF live in `../SRSfinal/`). The engineering companion docs are in [`docs/`](docs/):
 
 | File | What it covers |
 |---|---|
+| [srs.md](docs/srs.md) | The complete Software Requirements Specification |
 | [scope.md](docs/scope.md) | What the release is, what is deferred and why, success criteria |
 | [prd.md](docs/prd.md) | Screen, features, edge cases, fixed copy |
 | [stack.md](docs/stack.md) | Technology choices with reasoning, folder layout, the seams |
